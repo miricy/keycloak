@@ -66,7 +66,7 @@ public class OAuthRequestAuthenticator {
         this.reqAuthenticator = requestAuthenticator;
         this.facade = facade;
         this.deployment = deployment;
-        this.sslRedirectPort = sslRedirectPort;
+        this.sslRedirectPort = deployment.getConfidentialPort() != -1 ? deployment.getConfidentialPort() : sslRedirectPort;
         this.tokenStore = tokenStore;
     }
 
@@ -390,7 +390,8 @@ public class OAuthRequestAuthenticator {
     protected String stripOauthParametersFromRedirect() {
         KeycloakUriBuilder builder = KeycloakUriBuilder.fromUri(facade.getRequest().getURI())
                 .replaceQueryParam(OAuth2Constants.CODE, null)
-                .replaceQueryParam(OAuth2Constants.STATE, null);
+                .replaceQueryParam(OAuth2Constants.STATE, null)
+                .replaceQueryParam(OAuth2Constants.SESSION_STATE, null);
         return builder.build().toString();
     }
     
