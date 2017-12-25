@@ -18,10 +18,15 @@
 package org.keycloak.examples.rest;
 
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.services.managers.AppAuthManager;
+import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 
+import javax.ws.rs.ForbiddenException;
 import javax.ws.rs.GET;
+import javax.ws.rs.NotAuthorizedException;
 import javax.ws.rs.Produces;
+import javax.ws.rs.Path;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -29,9 +34,11 @@ import javax.ws.rs.Produces;
 public class HelloResourceProvider implements RealmResourceProvider {
 
     private KeycloakSession session;
+    private final AuthenticationManager.AuthResult auth;
 
     public HelloResourceProvider(KeycloakSession session) {
         this.session = session;
+        this.auth = new AppAuthManager().authenticateBearerToken(session, session.getContext().getRealm());
     }
 
     @Override
@@ -47,6 +54,34 @@ public class HelloResourceProvider implements RealmResourceProvider {
             name = session.getContext().getRealm().getName();
         }
         return "Hello " + name;
+    }
+    
+    @GET
+    @Path("test")
+    @Produces("text/plain; charset=utf-8")
+    public String test() {
+        String name = session.getContext().getRealm().getDisplayName();
+        if (name == null) {
+            name = session.getContext().getRealm().getName();
+        }
+        return "Hello test" + name;
+    }
+    
+
+    // Same like "companies" endpoint, but REST endpoint is authenticated with Bearer token and user must be in realm role "admin"
+    // Just for illustration purposes
+    @Path("test-auth")
+    public String getCompanyResourceAuthenticated() {
+        checkRealmAdmin();
+        return "Hello test-auth";
+    }
+
+    private void checkRealmAdmin() {
+        if (auth == null) {
+            throw new NotAuthorizedException("Bearer");
+        } else if (auth.getToken().getRealmAccess() == null || !auth.getToken().getRealmAccess().isUserInRole("admin")) {
+            throw new ForbiddenException("Does not have realm admin role");
+        }
     }
 
     @Override
