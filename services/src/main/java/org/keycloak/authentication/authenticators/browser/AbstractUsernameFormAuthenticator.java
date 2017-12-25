@@ -22,7 +22,6 @@ import org.keycloak.authentication.AbstractFormAuthenticator;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.credential.CredentialInput;
-import org.keycloak.credential.CredentialModel;
 import org.keycloak.credential.hash.PasswordHashProvider;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
@@ -125,18 +124,12 @@ public abstract class AbstractUsernameFormAuthenticator extends AbstractFormAuth
             context.getEvent().user(user);
             context.getEvent().error(Errors.USER_DISABLED);
             Response challengeResponse = disabledUser(context);
-            context.failureChallenge(AuthenticationFlowError.USER_DISABLED, challengeResponse);
+            // this is not a failure so don't call failureChallenge.
+            //context.failureChallenge(AuthenticationFlowError.USER_DISABLED, challengeResponse);
+            context.forceChallenge(challengeResponse);
             return false;
         }
-        if (context.getRealm().isBruteForceProtected()) {
-            if (context.getProtector().isTemporarilyDisabled(context.getSession(), context.getRealm(), user)) {
-                context.getEvent().user(user);
-                context.getEvent().error(Errors.USER_TEMPORARILY_DISABLED);
-                Response challengeResponse = temporarilyDisabledUser(context);
-                context.failureChallenge(AuthenticationFlowError.USER_TEMPORARILY_DISABLED, challengeResponse);
-                return false;
-            }
-        }
+        if (isTemporarilyDisabledByBruteForce(context, user)) return false;
         return true;
     }
 
@@ -199,6 +192,9 @@ public abstract class AbstractUsernameFormAuthenticator extends AbstractFormAuth
         List<CredentialInput> credentials = new LinkedList<>();
         String password = inputData.getFirst(CredentialRepresentation.PASSWORD);
         credentials.add(UserCredentialModel.password(password));
+
+        if (isTemporarilyDisabledByBruteForce(context, user)) return false;
+
         if (password != null && !password.isEmpty() && context.getSession().userCredentialManager().isValid(context.getRealm(), user, credentials)) {
             return true;
         } else {
@@ -209,6 +205,21 @@ public abstract class AbstractUsernameFormAuthenticator extends AbstractFormAuth
             context.clearUser();
             return false;
         }
+    }
+
+    private boolean isTemporarilyDisabledByBruteForce(AuthenticationFlowContext context, UserModel user) {
+        if (context.getRealm().isBruteForceProtected()) {
+            if (context.getProtector().isTemporarilyDisabled(context.getSession(), context.getRealm(), user)) {
+                context.getEvent().user(user);
+                context.getEvent().error(Errors.USER_TEMPORARILY_DISABLED);
+                Response challengeResponse = temporarilyDisabledUser(context);
+                // this is not a failure so don't call failureChallenge.
+                //context.failureChallenge(AuthenticationFlowError.USER_TEMPORARILY_DISABLED, challengeResponse);
+                context.forceChallenge(challengeResponse);
+                return true;
+            }
+        }
+        return false;
     }
 
 }

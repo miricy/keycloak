@@ -2493,12 +2493,12 @@ module.controller('RoleSelectorModalCtrl', function($scope, realm, config, confi
     };
 
     $scope.selectRealmRole = function() {
-        config[configName] = [$scope.selectedRealmRole.role.name];
+        config[configName] = $scope.selectedRealmRole.role.name;
         $modalInstance.close();
     }
 
     $scope.selectClientRole = function() {
-        config[configName] = [$scope.client.selected.clientId + "." + $scope.selectedClientRole.role.name];
+        config[configName] = $scope.client.selected.clientId + "." + $scope.selectedClientRole.role.name;
         $modalInstance.close();
     }
 
@@ -2955,4 +2955,15 @@ module.filter('startFrom', function () {
         }
         return [];
     };
+});
+
+
+module.directive('kcPassword', function ($compile, Notifications) {
+    return {
+        restrict: 'A',
+        link: function ($scope, elem, attr, ctrl) {
+            elem.addClass("password-conceal");
+            elem.attr("type","text");
+        }
+    }
 });
