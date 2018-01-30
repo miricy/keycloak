@@ -25,6 +25,7 @@ import org.keycloak.models.RoleContainerModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.cache.infinispan.entities.CachedClient;
 
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -199,7 +200,7 @@ public class ClientAdapter implements ClientModel {
     }
 
     public boolean validateSecret(String secret) {
-        return secret.equals(getSecret());
+        return MessageDigest.isEqual(secret.getBytes(), getSecret().getBytes());
     }
 
     public String getSecret() {
@@ -341,6 +342,34 @@ public class ClientAdapter implements ClientModel {
         if (isUpdated()) return updated.getAttributes();
         Map<String, String> copy = new HashMap<String, String>();
         copy.putAll(cached.getAttributes());
+        return copy;
+    }
+
+    @Override
+    public void setAuthenticationFlowBindingOverride(String name, String value) {
+        getDelegateForUpdate();
+        updated.setAuthenticationFlowBindingOverride(name, value);
+
+    }
+
+    @Override
+    public void removeAuthenticationFlowBindingOverride(String name) {
+        getDelegateForUpdate();
+        updated.removeAuthenticationFlowBindingOverride(name);
+
+    }
+
+    @Override
+    public String getAuthenticationFlowBindingOverride(String name) {
+        if (isUpdated()) return updated.getAuthenticationFlowBindingOverride(name);
+        return cached.getAuthFlowBindings().get(name);
+    }
+
+    @Override
+    public Map<String, String> getAuthenticationFlowBindingOverrides() {
+        if (isUpdated()) return updated.getAuthenticationFlowBindingOverrides();
+        Map<String, String> copy = new HashMap<String, String>();
+        copy.putAll(cached.getAuthFlowBindings());
         return copy;
     }
 
