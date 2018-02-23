@@ -93,7 +93,7 @@
         <scala-maven-plugin.version>3.2.2</scala-maven-plugin.version>
         <jboss-logging.version>3.3.0.Final</jboss-logging.version>
 
-        <gatling.simulationClass>keycloak.DefaultSimulation</gatling.simulationClass>
+        <gatling.simulationClass>keycloak.BasicOIDCSimulation</gatling.simulationClass>
         <gatling.skip.run>true</gatling.skip.run>
     </properties>
 
@@ -339,9 +339,11 @@
                                         <copy todir="${project.build.directory}/docker-compose" overwrite="false" >
                                             <fileset dir="${project.basedir}/..">
                                                 <include name="db/**"/>
-                                                <include name="infinispan/**"/>
                                                 <include name="monitoring/**"/>
                                             </fileset>
+                                        </copy>
+                                        <copy todir="${project.build.directory}/docker-compose/infinispan" overwrite="false" >
+                                            <fileset dir="${project.basedir}/../infinispan/target/docker"/>
                                         </copy>
                                         <copy todir="${project.build.directory}/docker-compose/load-balancer/wildfly-modcluster" overwrite="false" >
                                             <fileset dir="${project.basedir}/../load-balancer/wildfly-modcluster/target/docker"/>
