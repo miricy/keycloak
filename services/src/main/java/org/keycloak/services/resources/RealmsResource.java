@@ -280,9 +280,7 @@ public class RealmsResource {
     @Path("{realm}/{extension}")
     public Object resolveRealmExtension(@PathParam("realm") String realmName, @PathParam("extension") String extension) {
         RealmResourceProvider provider = session.getProvider(RealmResourceProvider.class, extension);
-        logger.info("===========extension:==========="+extension);
         if (provider != null) {
-        	logger.info("===========provider != null===========");
             init(realmName);
             Object resource = provider.getResource();
             if (resource != null) {
