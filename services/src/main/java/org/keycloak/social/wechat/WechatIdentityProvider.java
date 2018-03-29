@@ -32,10 +32,12 @@ import org.jboss.logging.Logger;
  */
 public class WechatIdentityProvider extends AbstractOAuth2IdentityProvider implements SocialIdentityProvider {
 
-	public static final String AUTH_URL = "https://open.weixin.qq.com/connect/oauth2/authorize";
+	public static final String AUTH_URL = "https://open.weixin.qq.com/connect/qrconnect";
 	public static final String TOKEN_URL = "https://api.weixin.qq.com/sns/oauth2/access_token";
 	public static final String PROFILE_URL = "https://api.weixin.qq.com/sns/userinfo";
 	public static final String DEFAULT_SCOPE = "snsapi_userinfo";
+	public static final String OAUTH2_PARAMETER_CLIENT_ID = "appid";
+    public static final String OAUTH2_PARAMETER_CLIENT_SECRET = "secret";
 
 	public WechatIdentityProvider(KeycloakSession session, OAuth2IdentityProviderConfig config) {
 		super(session, config);

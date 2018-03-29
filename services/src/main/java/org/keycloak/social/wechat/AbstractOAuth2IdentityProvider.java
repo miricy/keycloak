@@ -61,6 +61,7 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.net.URI;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -84,8 +85,8 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
     public static final String OAUTH2_PARAMETER_RESPONSE_TYPE = "response_type";
     public static final String OAUTH2_PARAMETER_REDIRECT_URI = "redirect_uri";
     public static final String OAUTH2_PARAMETER_CODE = "code";
-    public static final String OAUTH2_PARAMETER_CLIENT_ID = "appid";
-    public static final String OAUTH2_PARAMETER_CLIENT_SECRET = "secret";
+    public static final String OAUTH2_PARAMETER_CLIENT_ID = "client_id";
+    public static final String OAUTH2_PARAMETER_CLIENT_SECRET = "client_secret";
     public static final String OAUTH2_PARAMETER_GRANT_TYPE = "grant_type";
 
 
@@ -298,7 +299,7 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
     protected UriBuilder createAuthorizationUrl(AuthenticationRequest request) {
         final UriBuilder uriBuilder = UriBuilder.fromUri(getConfig().getAuthorizationUrl())
                 .queryParam(OAUTH2_PARAMETER_SCOPE, getConfig().getDefaultScope())
-                .queryParam(OAUTH2_PARAMETER_STATE, request.getState())
+                .queryParam(OAUTH2_PARAMETER_STATE, request.getState().getEncoded())
                 .queryParam(OAUTH2_PARAMETER_RESPONSE_TYPE, "code")
                 .queryParam(OAUTH2_PARAMETER_CLIENT_ID, getConfig().getClientId())
                 .queryParam(OAUTH2_PARAMETER_REDIRECT_URI, request.getRedirectUri());
@@ -315,6 +316,13 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
         if (prompt != null) {
             uriBuilder.queryParam(OAuth2Constants.PROMPT, prompt);
         }
+
+        String nonce = request.getAuthenticationSession().getClientNote(OIDCLoginProtocol.NONCE_PARAM);
+        if (nonce == null || nonce.isEmpty()) {
+            nonce = UUID.randomUUID().toString();
+            request.getAuthenticationSession().setClientNote(OIDCLoginProtocol.NONCE_PARAM, nonce);
+        }
+        uriBuilder.queryParam(OIDCLoginProtocol.NONCE_PARAM, nonce);
 
         String acr = request.getAuthenticationSession().getClientNote(OAuth2Constants.ACR_VALUES);
         if (acr != null) {
