@@ -23,7 +23,7 @@
 
 <html>
 <head>
-    <title>Welcome to Keycloak</title>
+    <title>Welcome to izhiju.cn</title>
 
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -59,9 +59,9 @@
 <div class="wrapper">
     <div class="content">
         <div class="logo">
-                <img src="welcome-content/keycloak_logo.png" alt="Keycloak" border="0" />
+                <img src="welcome-content/keycloak_logo.png" alt="izhiju" border="0" />
         </div>
-        <h1>Welcome to Keycloak</h1>
+        <h1>欢迎访问武汉智居科技</h1>
 
         <#if successMessage?has_content>
             <p>${successMessage}</p>
@@ -101,12 +101,8 @@
             </form>
         </#if>
 
-        <p><a href="http://www.keycloak.org/docs">Documentation</a> | <a href="admin/">Administration Console</a> </p>
-
-        <p><a href="http://www.keycloak.org">Keycloak Project</a> |
-            <a href="https://lists.jboss.org/mailman/listinfo/keycloak-user">Mailing List</a> |
-            <a href="https://issues.jboss.org/browse/KEYCLOAK">Report an issue</a></p>
-        <p class="logos"><a href="http://www.jboss.org"><img src="welcome-content/jboss_community.png" alt="JBoss and JBoss Community" width="254" height="31" border="0"></a></p>
+        <p><a href="http://www.izhiju.cn">网站主页</a> | <a href="admin/">Administration Console</a> </p>
+       
     </div>
 </div>
 </body>

@@ -85,8 +85,8 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
     public static final String OAUTH2_PARAMETER_RESPONSE_TYPE = "response_type";
     public static final String OAUTH2_PARAMETER_REDIRECT_URI = "redirect_uri";
     public static final String OAUTH2_PARAMETER_CODE = "code";
-    public static final String OAUTH2_PARAMETER_CLIENT_ID = "client_id";
-    public static final String OAUTH2_PARAMETER_CLIENT_SECRET = "client_secret";
+    public static final String OAUTH2_PARAMETER_CLIENT_ID = "appid";
+    public static final String OAUTH2_PARAMETER_CLIENT_SECRET = "secret";
     public static final String OAUTH2_PARAMETER_GRANT_TYPE = "grant_type";
 
 
