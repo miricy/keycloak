@@ -33,9 +33,10 @@ import java.util.List;
 import java.util.Map;
 
 import static java.lang.Math.toIntExact;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -43,6 +44,7 @@ import static org.hamcrest.collection.IsMapContaining.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import org.keycloak.testsuite.ProfileAssume;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlDoesntStartWith;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
 import static org.keycloak.testsuite.util.WaitUtils.waitUntilElement;
@@ -76,12 +78,12 @@ public class JavascriptAdapterTest extends AbstractJavascriptTest {
     public void setDefaultEnvironment() {
         testAppUrl = authServerContextRootPage + JAVASCRIPT_URL + "/index.html";
 
-        testRealmLoginPage.setAuthRealm(REALM_NAME);
+        jsDriverTestRealmLoginPage.setAuthRealm(REALM_NAME);
         oAuthGrantPage.setAuthRealm(REALM_NAME);
         applicationsPage.setAuthRealm(REALM_NAME);
 
         jsDriver.navigate().to(testAppUrl);
-        testExecutor = JavascriptTestExecutor.create(jsDriver, testRealmLoginPage);
+        testExecutor = JavascriptTestExecutor.create(jsDriver, jsDriverTestRealmLoginPage);
 
         waitUntilElement(outputArea).is().present();
         assertCurrentUrlStartsWith(testAppUrl, jsDriver);
@@ -114,6 +116,25 @@ public class JavascriptAdapterTest extends AbstractJavascriptTest {
                 .init(defaultArguments(), this::assertInitNotAuth);
     }
 
+    @Test
+    public void testLoginWithKCLocale() {
+        ProfileAssume.assumeCommunity();
+
+        RealmRepresentation testRealmRep = testRealmResource().toRepresentation();
+        testRealmRep.setInternationalizationEnabled(true);
+        testRealmRep.setDefaultLocale("en");
+        testRealmRep.setSupportedLocales(Stream.of("en", "de").collect(Collectors.toSet()));
+        testRealmResource().update(testRealmRep);
+        
+        testExecutor.init(defaultArguments(), this::assertInitNotAuth)
+                .login(this::assertOnLoginPage)
+                .loginForm(testUser, this::assertOnTestAppUrl)
+                .init(defaultArguments(), this::assertSuccessfullyLoggedIn)
+                .login("{kcLocale: 'de'}", assertLocaleIsSet("de"))
+                .init(defaultArguments(), this::assertSuccessfullyLoggedIn)
+                .login("{kcLocale: 'en'}", assertLocaleIsSet("en"));
+    }
+    
     @Test
     public void testRefreshToken() {
         testExecutor.init(defaultArguments(), this::assertInitNotAuth)
@@ -401,7 +422,7 @@ public class JavascriptAdapterTest extends AbstractJavascriptTest {
 
         testAppUrl = authServerContextRootPage + JAVASCRIPT_SPACE_URL + "/index.html";
         jsDriver.navigate().to(testAppUrl);
-        testRealmLoginPage.setAuthRealm(SPACE_REALM_NAME);
+        jsDriverTestRealmLoginPage.setAuthRealm(SPACE_REALM_NAME);
 
         testExecutor.configure(configuration)
                 .init(defaultArguments(), this::assertInitNotAuth)
@@ -412,7 +433,7 @@ public class JavascriptAdapterTest extends AbstractJavascriptTest {
 
         // Clean
         adminClient.realm(SPACE_REALM_NAME).update(RealmBuilder.edit(adminClient.realm(SPACE_REALM_NAME).toRepresentation()).name(REALM_NAME).build());
-        testRealmLoginPage.setAuthRealm(REALM_NAME);
+        jsDriverTestRealmLoginPage.setAuthRealm(REALM_NAME);
     }
 
     @Test
