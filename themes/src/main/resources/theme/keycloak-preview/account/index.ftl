@@ -3,13 +3,24 @@
     <head>
         <title>${msg("accountManagementTitle")}</title>
 
+        <meta charset="UTF-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        
         <script>
             var authUrl = '${authUrl}';
             var baseUrl = '${baseUrl}';
-            var realm = '${realm}';
+            var realm = '${realm.name}';
             var resourceUrl = '${resourceUrl}';
-            var isRegistrationEmailAsUsername = ${isRegistrationEmailAsUsername?c};
-            var isEditUserNameAllowed = ${isEditUserNameAllowed?c};
+            var isRegistrationEmailAsUsername = ${realm.registrationEmailAsUsername?c};
+            var isEditUserNameAllowed = ${realm.editUsernameAllowed?c};
+            var isInternationalizationEnabled = ${realm.internationalizationEnabled?c};
+                
+            var availableLocales = [];
+            <#list supportedLocales as locale, label>
+                availableLocales.push({locale : '${locale}', label : '${label}'});
+            </#list>
 
             <#if referrer??>
                 var referrer = '${referrer}';
@@ -26,11 +37,6 @@
         </script>
 
         <base href="${baseUrl}/">
-
-        <meta charset="UTF-8">
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
-        <meta name="robots" content="noindex, nofollow">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <link rel="icon" href="${resourceUrl}/app/assets/img/favicon.ico" type="image/x-icon"/>
 
@@ -66,15 +72,34 @@
         <script src="${resourceUrl}/node_modules/patternfly/dist/js/patternfly.min.js"></script>
         <script src="${authUrl}/js/keycloak.js"></script>
 
+   <!-- TODO: We should save these css and js into variables and then load in
+        main.ts for better performance.  These might be loaded twice.
+        -->
+        <#if properties.styles?has_content>
+            <#list properties.styles?split(' ') as style>
+            <link href="${resourceUrl}/${style}" rel="stylesheet"/>
+            </#list>
+            <a href="../../../../../../../../keycloak-quickstarts/app-profile-jee-html5/src/main/webapp/index.html"></a>
+        </#if>
+
+        <#if properties.scripts?has_content>
+            <#list properties.scripts?split(' ') as script>
+        <script type="text/javascript" src="${resourceUrl}/${script}"></script>
+            </#list>
+        </#if>
+    </head>
+
+    <body>
+
         <script>
-            var keycloak = Keycloak('${authUrl}/realms/${realm}/account/keycloak.json');
-            keycloak.init({onLoad: 'check-sso'}).success(function(authenticated) {
-                var loadjs = function (url,loadListener) {
+            var keycloak = Keycloak('${authUrl}/realms/${realm.name}/account/keycloak.json');
+            var loadjs = function (url,loadListener) {
                     const script = document.createElement("script");
                     script.src = resourceUrl + url;
                     if (loadListener) script.addEventListener("load", loadListener);
                     document.head.appendChild(script);
                 };
+            keycloak.init({onLoad: 'check-sso'}).success(function(authenticated) {
                 loadjs("/node_modules/core-js/client/shim.min.js", function(){
                     loadjs("/node_modules/zone.js/dist/zone.min.js");
                     loadjs("/node_modules/systemjs/dist/system.src.js", function() {
@@ -89,26 +114,6 @@
                 alert('failed to initialize keycloak');
             });
         </script>
-
-
-   <!-- TODO: We should save these css and js into variables and then load in
-        main.ts for better performance.  These might be loaded twice.
-        -->
-        <#if properties.styles?has_content>
-            <#list properties.styles?split(' ') as style>
-        <link href="${resourceUrl}/${style}" rel="stylesheet"/>
-            </#list>
-    <a href="../../../../../../../../keycloak-quickstarts/app-profile-jee-html5/src/main/webapp/index.html"></a>
-        </#if>
-
-        <#if properties.scripts?has_content>
-            <#list properties.scripts?split(' ') as script>
-        <script type="text/javascript" src="${resourceUrl}/${script}"></script>
-            </#list>
-        </#if>
-        </head>
-    <body>
-
 
 
 <!-- Top Navigation -->
@@ -128,27 +133,15 @@
                      we are unable to localize the button's message.  Not sure what to do about that yet.
                 -->
                 <ul class="nav navbar-nav navbar-right navbar-iconic">
-                    <li><button id="signInButton" style="visibility:hidden" onclick="keycloak.login();" class="btn btn-primary btn-lg btn-sign" type="button">Log In</button></li>
+                    <li><button id="signInButton" style="visibility:hidden" onclick="keycloak.login();" class="btn btn-primary btn-lg btn-sign" type="button">${msg("doLogIn")}</button></li>
                     <li class="dropdown">
                       <a href="#0" class="dropdown-toggle nav-item-iconic" id="dropdownMenu1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        ${msg("locale_en")} <span class="caret"></span>
+                        ${msg("locale_" + locale)} <span class="caret"></span>
                       </a>
                       <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
-                        <li><a href="#">${msg("locale_ca")}</a></li>
-                        <li><a href="#">${msg("locale_de")}</a></li>
-                        <li><a href="#">${msg("locale_en")}</a></li>
-                        <li><a href="#">${msg("locale_es")}</a></li>
-                        <li><a href="#">${msg("locale_fr")}</a></li>
-                        <li><a href="#">${msg("locale_it")}</a></li>
-                        <li><a href="#">${msg("locale_ja")}</a></li>
-                        <li><a href="#">${msg("locale_nl")}</a></li>
-                        <li><a href="#">${msg("locale_no")}</a></li>
-                        <li><a href="#">${msg("locale_lt")}</a></li>
-                        <li><a href="#">${msg("locale_pt-BR")}</a></li>
-                        <li><a href="#">${msg("locale_ru")}</a></li>
-                        <li><a href="#">${msg("locale_sk")}</a></li>
-                        <li><a href="#">${msg("locale_sv")}</a></li>
-                        <li><a href="#">${msg("locale_zh-CN")}</a></li>
+                      <#list supportedLocales as locale, label>
+                        <li><a href="${baseUrl}/?kc_locale=${locale}">${label}</a></li>
+                      </#list>
                       </ul>
                     </li>
                 </ul>
@@ -157,7 +150,7 @@
 
 <!--Top Nav -->
 
-<!-- Home Page --->
+<!-- Home Page -->
 
     <div class="cards-pf" id="welcomeScreen">
         <div class="text-center">
@@ -195,7 +188,7 @@
                             <hr/>
                             <h3><a href="${baseUrl}/#/authenticator">${msg("authenticatorTitle")}</a></h3>
                             <hr/>
-                            <h3><a href="${baseUrl}/#/sessions">${msg("deviceActivityHtmlTitle")}</a></h3>
+                            <h3><a href="${baseUrl}/#/device-activity">${msg("deviceActivityHtmlTitle")}</a></h3>
                             <hr/>
                             <h3><a href="${baseUrl}/#/account">${msg("federatedIdentity")}</a></h3>
                         </div>
@@ -238,8 +231,8 @@
 
         <script>
             var winHash = window.location.hash;
-            if (winHash.startsWith('#/') && !winHash.startsWith('#/&state')) {
-                document.getElementById("welcomeScreen").style.visibility='hidden';
+            if ((winHash.indexOf('#/') == 0) && (!winHash.indexOf('#/&state') == 0)) {
+                document.getElementById("welcomeScreen").style.display='none';
             }
         </script>
 
