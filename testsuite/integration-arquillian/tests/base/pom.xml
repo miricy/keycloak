@@ -240,6 +240,7 @@
                 <extensions>true</extensions>
                 <configuration>
                     <goVersion>1.9.2</goVersion>
+                    <useMavenProxy>true</useMavenProxy>
                 </configuration>
                 <executions>
                     <execution>
@@ -275,6 +276,26 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>product</id>
+            <activation>
+                <property>
+                    <name>product</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.igormaznitsa</groupId>
+                        <artifactId>mvn-golang-wrapper</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <profile>
             <id>auth-servers-crossdc-undertow</id>
             <properties>

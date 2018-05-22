@@ -37,6 +37,7 @@ import org.keycloak.services.resources.admin.AdminEventBuilder;
 import javax.ws.rs.Path;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response.Status;
+import org.keycloak.authorization.protection.permission.PermissionTicketService;
 
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
@@ -57,7 +58,7 @@ public class ProtectionService {
         KeycloakIdentity identity = createIdentity(true);
         ResourceServer resourceServer = getResourceServer(identity);
         RealmModel realm = authorization.getRealm();
-        ClientModel client = realm.getClientById(identity.getId());
+        ClientModel client = realm.getClientById(resourceServer.getId());
         KeycloakSession keycloakSession = authorization.getKeycloakSession();
         UserModel serviceAccount = keycloakSession.users().getServiceAccount(client);
         AdminEventBuilder adminEvent = new AdminEventBuilder(realm, new AdminAuth(realm, identity.getAccessToken(), serviceAccount, client), keycloakSession, clientConnection);
@@ -77,6 +78,17 @@ public class ProtectionService {
         KeycloakIdentity identity = createIdentity(false);
 
         PermissionService resource = new PermissionService(identity, getResourceServer(identity), this.authorization);
+
+        ResteasyProviderFactory.getInstance().injectProperties(resource);
+
+        return resource;
+    }
+    
+    @Path("/permission/ticket")
+    public Object ticket() {
+        KeycloakIdentity identity = createIdentity(false);
+
+        PermissionTicketService resource = new PermissionTicketService(identity, getResourceServer(identity), this.authorization);
 
         ResteasyProviderFactory.getInstance().injectProperties(resource);
 
