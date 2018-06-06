@@ -20,8 +20,7 @@ package org.keycloak.authentication.forms;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicNameValuePair;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
@@ -61,8 +60,10 @@ import java.util.Map;
 public class RegistrationMobile implements FormAction, FormActionFactory, ConfiguredProvider {
     public static final String G_RECAPTCHA_RESPONSE = "mobile-code";
     public static final String RECAPTCHA_REFERENCE_CATEGORY = "mobile-recaptcha";
-    public static final String SITE_KEY = "site.key";
-    public static final String SITE_SECRET = "secret";
+    public static final String SCOPEID = "site.scopeid";
+    public static final String GET_KEY = "site.searchkey";
+    public static final String SEND_KEY = "site.sendkey";
+    public static final String PRODUCT_NAME = "site.product";
     private static final Logger logger = Logger.getLogger(RegistrationMobile.class);
 
     public static final String PROVIDER_ID = "registration-mobile-action";
@@ -95,18 +96,24 @@ public class RegistrationMobile implements FormAction, FormActionFactory, Config
         AuthenticatorConfigModel captchaConfig = context.getAuthenticatorConfig();
         String userLanguageTag = context.getSession().getContext().resolveLocale(context.getUser()).toLanguageTag();
         if (captchaConfig == null || captchaConfig.getConfig() == null
-                || captchaConfig.getConfig().get(SITE_KEY) == null
-                || captchaConfig.getConfig().get(SITE_SECRET) == null
+                || captchaConfig.getConfig().get(SCOPEID) == null
+                || captchaConfig.getConfig().get(PRODUCT_NAME) == null
+                || captchaConfig.getConfig().get(SEND_KEY) == null
                 ) {
             form.addError(new FormMessage(null, Messages.RECAPTCHA_NOT_CONFIGURED));
             return;
         }
-        String siteKey = captchaConfig.getConfig().get(SITE_KEY);
+        String productName = captchaConfig.getConfig().get(PRODUCT_NAME);
+        String scopeid = captchaConfig.getConfig().get(SCOPEID);
+        String sendKey = captchaConfig.getConfig().get(SEND_KEY);
         form.setAttribute("mobileRecaptchaRequired", true);
-        form.setAttribute("recaptchaSiteKey", siteKey);
-        form.addScript("https://dev.izhiju.cn/api/v1/_/smartpenfs/" + userLanguageTag);
+        form.setAttribute("scopeid", scopeid);
+        form.setAttribute("productName", productName);
+        form.setAttribute("sendKey", sendKey);
+        
+//        form.addScript("https://dev.izhiju.cn/api/v1/_/smartpenfs/" + userLanguageTag);
        
-        logger.info("-------------alva debug----product:"+siteKey);
+        logger.info("-------------alva debug----scopeid:"+scopeid + "  product Name:"+productName + "  sendKey:" +sendKey);
     }
 
     @Override
@@ -117,11 +124,13 @@ public class RegistrationMobile implements FormAction, FormActionFactory, Config
         context.getEvent().detail(Details.REGISTER_METHOD, "form");
 
         String captcha = formData.getFirst(G_RECAPTCHA_RESPONSE);
+        String mobile  = formData.getFirst("username");
         if (!Validation.isBlank(captcha)) {
             AuthenticatorConfigModel captchaConfig = context.getAuthenticatorConfig();
-            String secret = captchaConfig.getConfig().get(SITE_SECRET);
-            logger.info("-------------alva debug----SITE_SECRET:"+secret+"   code:"+captcha);
-            success = validateRecaptcha(context, success, captcha, secret);
+            String scopeid = captchaConfig.getConfig().get(SCOPEID);
+            String getKey = captchaConfig.getConfig().get(GET_KEY);
+            logger.info("-------------alva debug----SITE_SECRET:"+scopeid+ " getKey:"+ getKey +"   code:"+captcha);
+            success = validateRecaptcha(context, success,scopeid,mobile, captcha, getKey);
         }
         if (success) {
             context.success();
@@ -132,27 +141,28 @@ public class RegistrationMobile implements FormAction, FormActionFactory, Config
             context.validationError(formData, errors);
             context.excludeOtherErrors();
             return;
-
-
         }
     }
 
-    protected boolean validateRecaptcha(ValidationContext context, boolean success, String captcha, String secret) {
+    protected boolean validateRecaptcha(ValidationContext context, boolean success,String scopeid,String mobile, String captcha, String secret) {
         HttpClient httpClient = context.getSession().getProvider(HttpClientProvider.class).getHttpClient();
-        HttpPost post = new HttpPost("https://dev.izhiju.cn/api/v1/AQ/smartpenfs/18680533727?key=test");
+        HttpGet httpget = new HttpGet("https://dev.izhiju.cn/api/v1/"+scopeid+"/smartpenfs/"+mobile+"?key="+ secret);
+        httpget.addHeader("Accept", "application/json");
         List<NameValuePair> formparams = new LinkedList<>();
         formparams.add(new BasicNameValuePair("secret", secret));
         formparams.add(new BasicNameValuePair("response", captcha));
         formparams.add(new BasicNameValuePair("remoteip", context.getConnection().getRemoteAddr()));
+        logger.info("-------------alva debug----URL:"+"https://dev.izhiju.cn/api/v1/"+scopeid+"/smartpenfs/"+mobile+"?key="+ secret);
         try {
-            UrlEncodedFormEntity form = new UrlEncodedFormEntity(formparams, "UTF-8");
-            post.setEntity(form);
-            HttpResponse response = httpClient.execute(post);
+//            UrlEncodedFormEntity form = new UrlEncodedFormEntity(formparams, "UTF-8");
+//            post.setEntity(form);
+            HttpResponse response = httpClient.execute(httpget);
             InputStream content = response.getEntity().getContent();
             try {
-                Map json = JsonSerialization.readValue(content, Map.class);
-                Object val = json.get("success");
-                success = Boolean.TRUE.equals(val);
+                Map json = JsonSerialization.readValue(content, Map.class);                
+                Object val = json.get("yzm");
+                logger.info("-------------alva debug----code:"+captcha+" response:"+json.toString());
+                success = captcha.equals(val);
             } finally {
                 content.close();
             }
@@ -223,18 +233,29 @@ public class RegistrationMobile implements FormAction, FormActionFactory, Config
     static {
         ProviderConfigProperty property;
         property = new ProviderConfigProperty();
-        property.setName(SITE_KEY);
-        property.setLabel("Recaptcha Site Key");
+        property.setName(SCOPEID);
+        property.setLabel("zhiju ScopeID");
         property.setType(ProviderConfigProperty.STRING_TYPE);
-        property.setHelpText("Google Recaptcha Site Key");
+        property.setHelpText("zhiju Mobile Recaptcha scopeid");
         CONFIG_PROPERTIES.add(property);
         property = new ProviderConfigProperty();
-        property.setName(SITE_SECRET);
-        property.setLabel("Recaptcha Secret");
+        property.setName(PRODUCT_NAME);
+        property.setLabel("zhiju product");
         property.setType(ProviderConfigProperty.STRING_TYPE);
-        property.setHelpText("Google Recaptcha Secret");
+        property.setHelpText("zhiju Recaptcha product");
         CONFIG_PROPERTIES.add(property);
-
+        property = new ProviderConfigProperty();
+        property.setName(GET_KEY);
+        property.setLabel("Get code key");
+        property.setType(ProviderConfigProperty.STRING_TYPE);
+        property.setHelpText("get code key");
+        CONFIG_PROPERTIES.add(property);
+        property = new ProviderConfigProperty();
+        property.setName(SEND_KEY);
+        property.setLabel("SMS send key");
+        property.setType(ProviderConfigProperty.STRING_TYPE);
+        property.setHelpText("SMS send key");
+        CONFIG_PROPERTIES.add(property);
     }
 
 
