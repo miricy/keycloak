@@ -125,6 +125,14 @@ public class RegistrationMobile implements FormAction, FormActionFactory, Config
 
         String captcha = formData.getFirst(G_RECAPTCHA_RESPONSE);
         String mobile  = formData.getFirst("username");
+        if(mobile==null || mobile.isEmpty() || mobile.length()<8) {
+        	 errors.add(new FormMessage(null, Messages.INVALID_USER));
+             formData.remove(G_RECAPTCHA_RESPONSE);
+             context.error(Errors.INVALID_REGISTRATION);
+             context.validationError(formData, errors);
+             context.excludeOtherErrors();
+             return;
+        }
         if (!Validation.isBlank(captcha)) {
             AuthenticatorConfigModel captchaConfig = context.getAuthenticatorConfig();
             String scopeid = captchaConfig.getConfig().get(SCOPEID);
