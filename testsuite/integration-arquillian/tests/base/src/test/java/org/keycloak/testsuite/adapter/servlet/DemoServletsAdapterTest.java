@@ -131,6 +131,8 @@ import static org.keycloak.testsuite.util.WaitUtils.waitForPageToLoad;
  */
 @AppServerContainer(ContainerConstants.APP_SERVER_UNDERTOW)
 @AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY)
+@AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY10)
+@AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY9)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP6)
 public class DemoServletsAdapterTest extends AbstractServletsAdapterTest {
@@ -666,6 +668,7 @@ public class DemoServletsAdapterTest extends AbstractServletsAdapterTest {
     public void testVersion() {
         jsDriver.navigate().to(suiteContext.getAuthServerInfo().getContextRoot().toString() +
                 "/auth/admin/master/console/#/server-info");
+        WaitUtils.waitForPageToLoad();
         jsDriverTestRealmLoginPage.form().login("admin", "admin");
 
         WaitUtils.waitUntilElement(By.tagName("body")).is().visible();

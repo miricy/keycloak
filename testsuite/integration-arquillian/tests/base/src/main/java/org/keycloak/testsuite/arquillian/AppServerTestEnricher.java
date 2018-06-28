@@ -198,12 +198,24 @@ public class AppServerTestEnricher {
         return CURRENT_APP_SERVER.equals("wildfly");
     }
 
+    public static boolean isWildfly10AppServer() {
+        return CURRENT_APP_SERVER.equals("wildfly10");
+    }
+
+    public static boolean isWildfly9AppServer() {
+        return CURRENT_APP_SERVER.equals("wildfly9");
+    }
+
     public static boolean isTomcatAppServer() {
         return CURRENT_APP_SERVER.equals("tomcat");
     }
 
     public static boolean isEAP6AppServer() {
         return CURRENT_APP_SERVER.equals("eap6");
+    }
+
+    public static boolean isEAPAppServer() {
+        return CURRENT_APP_SERVER.equals("eap");
     }
 
     public static boolean isWASAppServer() {
