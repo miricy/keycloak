@@ -83,6 +83,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWithLoginUrlOf;
 import static org.keycloak.testsuite.utils.io.IOUtil.loadJson;
 import static org.keycloak.testsuite.utils.io.IOUtil.loadRealm;
 import static org.keycloak.testsuite.util.WaitUtils.waitForPageToLoad;
@@ -302,7 +303,10 @@ public abstract class AbstractPhotozExampleAdapterTest extends AbstractExampleAd
         printUpdatedPolicies();
 
         clientPage.navigateToAdminAlbum(false);
+
         clientPage.viewAlbum("Alice Family Album", true);
+        clientPage.navigateToAdminAlbum(false);
+        clientPage.deleteAlbum("Alice Family Album", true);
 
         for (PolicyRepresentation policy : getAuthorizationResource().policies().policies()) {
             if ("Album Resource Permission".equals(policy.getName())) {
@@ -365,6 +369,7 @@ public abstract class AbstractPhotozExampleAdapterTest extends AbstractExampleAd
         assertThat(getResourcesOfUser("alice"), is(empty()));
     }
 
+    @Ignore
     @Test
     public void testClientRoleRepresentingUserConsent() throws Exception {
         ContainerAssume.assumeNotAuthServerUndertow();
@@ -397,6 +402,7 @@ public abstract class AbstractPhotozExampleAdapterTest extends AbstractExampleAd
     }
 
     @Test
+    @Ignore
     public void testClientRoleNotRequired() throws Exception {
         loginToClientPage("alice", "alice");
 
@@ -738,7 +744,7 @@ public abstract class AbstractPhotozExampleAdapterTest extends AbstractExampleAd
 
                     clientPage.navigateTo();
                     // Check for correct logout
-                    this.jsDriverTestRealmLoginPage.form().waitForLoginButtonPresent();
+                    assertCurrentUrlStartsWithLoginUrlOf(jsDriverTestRealmLoginPage);
                 } else {
                     throw ex;
                 }
