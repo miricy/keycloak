@@ -26,7 +26,6 @@ import org.keycloak.OAuthErrorException;
 import org.keycloak.authentication.AuthenticationProcessor;
 import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.authorization.AuthorizationTokenService;
-import org.keycloak.representations.idm.authorization.AuthorizationRequest;
 import org.keycloak.authorization.util.Tokens;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.provider.ExchangeExternalToken;
@@ -162,6 +161,13 @@ public class TokenEndpoint {
 
         formParams = request.getDecodedFormParameters();
         grantType = formParams.getFirst(OIDCLoginProtocol.GRANT_TYPE_PARAM);
+
+        // https://tools.ietf.org/html/rfc6749#section-5.1
+        // The authorization server MUST include the HTTP "Cache-Control" response header field
+        // with a value of "no-store" as well as the "Pragma" response header field with a value of "no-cache".
+        MultivaluedMap<String, Object> outputHeaders = httpResponse.getOutputHeaders();
+        outputHeaders.putSingle("Cache-Control", "no-store");
+        outputHeaders.putSingle("Pragma", "no-cache");
 
         checkSsl();
         checkRealm();
@@ -1070,11 +1076,13 @@ public class TokenEndpoint {
             }
         }
 
-        AuthorizationRequest authorizationRequest = new AuthorizationRequest(formParams.getFirst("ticket"));
+        AuthorizationTokenService.KeycloakAuthorizationRequest authorizationRequest = new AuthorizationTokenService.KeycloakAuthorizationRequest(session.getProvider(AuthorizationProvider.class), tokenManager, event, this.request, cors);
 
+        authorizationRequest.setTicket(formParams.getFirst("ticket"));
         authorizationRequest.setClaimToken(claimToken);
         authorizationRequest.setClaimTokenFormat(claimTokenFormat);
         authorizationRequest.setPct(formParams.getFirst("pct"));
+
         String rpt = formParams.getFirst("rpt");
 
         if (rpt != null) {
@@ -1128,9 +1136,11 @@ public class TokenEndpoint {
             metadata.setLimit(Integer.parseInt(responsePermissionsLimit));
         }
 
+        metadata.setResponseMode(formParams.getFirst("response_mode"));
+
         authorizationRequest.setMetadata(metadata);
 
-        return new AuthorizationTokenService(session.getProvider(AuthorizationProvider.class), tokenManager, event, request, cors).authorize(authorizationRequest);
+        return AuthorizationTokenService.instance().authorize(authorizationRequest);
     }
 
     // https://tools.ietf.org/html/rfc7636#section-4.1
