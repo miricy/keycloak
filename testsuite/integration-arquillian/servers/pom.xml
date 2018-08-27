@@ -37,6 +37,7 @@
         <wildfly9.version>9.0.2.Final</wildfly9.version>
         <wildfly8.version>8.2.1.Final</wildfly8.version>
         <eap6.version>7.5.20.Final-redhat-1</eap6.version>
+        <eap71.version>7.1.4.GA-redhat-1</eap71.version>
         <jboss.as.version>7.1.1.Final</jboss.as.version>
         <tomcat7.version>7.0.68</tomcat7.version>
         <tomcat8.version>8.0.32</tomcat8.version>
@@ -47,8 +48,8 @@
         <fuse62.version>6.2.1.redhat-084</fuse62.version>
         
         <!-- cache server versions -->
-        <!--<infinispan.version>9.0.1.Final</infinispan.version>--> <!-- Use same version like our infinispan version for now -->
-        <jdg.version>8.4.0.Final-redhat-2</jdg.version><!-- JDG 7.1.0 -->
+        <!--<infinispan.version>8.2.8.Final</infinispan.version>--><!-- Use same infinspan-server version as our version -->
+        <jdg.version>8.5.0.Final-redhat-9</jdg.version><!-- JDG 7.2.0 -->
         
         <jboss.default.worker.io-threads>16</jboss.default.worker.io-threads>
         <jboss.default.worker.task-max-threads>128</jboss.default.worker.task-max-threads>
