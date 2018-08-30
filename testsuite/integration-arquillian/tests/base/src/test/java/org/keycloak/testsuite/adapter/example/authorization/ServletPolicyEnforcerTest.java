@@ -18,8 +18,8 @@ package org.keycloak.testsuite.adapter.example.authorization;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.keycloak.testsuite.util.WaitUtils.waitForPageToLoad;
 import static org.keycloak.testsuite.utils.io.IOUtil.loadRealm;
-import static org.keycloak.testsuite.util.WaitUtils.pause;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -46,7 +46,7 @@ import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.adapter.AbstractExampleAdapterTest;
 import org.keycloak.testsuite.arquillian.annotation.AppServerContainer;
 import org.keycloak.testsuite.arquillian.containers.ContainerConstants;
-import org.keycloak.testsuite.util.WaitUtils;
+import org.keycloak.testsuite.util.UIUtils;
 import org.openqa.selenium.By;
 
 /**
@@ -56,6 +56,7 @@ import org.openqa.selenium.By;
 @AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY10)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP6)
+@AppServerContainer(ContainerConstants.APP_SERVER_UNDERTOW)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP71)
 public class ServletPolicyEnforcerTest extends AbstractExampleAdapterTest {
 
@@ -523,10 +524,7 @@ public class ServletPolicyEnforcerTest extends AbstractExampleAdapterTest {
 
     private void logOut() {
         navigateTo();
-        By by = By.xpath("//a[text() = 'Sign Out']");
-        WaitUtils.waitUntilElement(by);
-        this.driver.findElement(by).click();
-        pause(500);
+        UIUtils.clickLink(driver.findElement(By.xpath("//a[text() = 'Sign Out']")));
     }
 
     private  void login(String username, String password) {
@@ -545,8 +543,8 @@ public class ServletPolicyEnforcerTest extends AbstractExampleAdapterTest {
     }
 
     private void navigateTo() {
-        this.driver.navigate().to(getResourceServerUrl());
-        WaitUtils.waitUntilElement(By.xpath("//p[text() = 'Welcome']"));
+        this.driver.navigate().to(getResourceServerUrl() + "/");
+        waitForPageToLoad();
     }
 
     private boolean wasDenied() {
