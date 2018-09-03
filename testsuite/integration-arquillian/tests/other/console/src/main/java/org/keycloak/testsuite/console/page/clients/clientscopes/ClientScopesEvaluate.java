@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * Copyright 2017 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,25 +15,25 @@
  * limitations under the License.
  */
 
-package org.keycloak.testsuite.arquillian.annotation;
+package org.keycloak.testsuite.console.page.clients.clientscopes;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Repeatable;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import org.jboss.arquillian.graphene.page.Page;
+import org.keycloak.testsuite.console.page.clients.Client;
 
 /**
- *
- * @author tkyjovsk
+ * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
-@Documented
-@Retention(RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
-@Repeatable(AppServerContainers.class)
-public @interface AppServerContainer {
-    String value();
-    boolean skip() default false;
+public class ClientScopesEvaluate extends Client {
+
+    @Page
+    private ClientScopesEvaluateForm form;
+
+    @Override
+    public String getUriFragment() {
+        return super.getUriFragment() + "/client-scopes/evaluate-scopes";
+    }
+
+    public ClientScopesEvaluateForm form() {
+        return form;
+    }
 }
