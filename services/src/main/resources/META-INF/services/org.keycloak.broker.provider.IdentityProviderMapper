@@ -34,4 +34,5 @@ org.keycloak.social.stackoverflow.StackoverflowUserAttributeMapper
 org.keycloak.social.microsoft.MicrosoftUserAttributeMapper
 org.keycloak.social.baidu.BaiduUserAttributeMapper
 org.keycloak.social.wechat.WechatUserAttributeMapper
+org.keycloak.social.qq.QQUserAttributeMapper
 org.keycloak.social.instagram.InstagramUserAttributeMapper
