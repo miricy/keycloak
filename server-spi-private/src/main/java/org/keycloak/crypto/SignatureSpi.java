@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Red Hat, Inc. and/or its affiliates
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,38 +14,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.keycloak.crypto;
 
-package org.keycloak.keys;
+import org.keycloak.provider.Provider;
+import org.keycloak.provider.ProviderFactory;
+import org.keycloak.provider.Spi;
 
-import org.jboss.logging.Logger;
-import org.keycloak.crypto.Algorithm;
-import org.keycloak.crypto.KeyType;
-import org.keycloak.crypto.KeyUse;
-
-/**
- * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
- */
-public class FailsafeAesKeyProvider extends FailsafeSecretKeyProvider {
-
-    private static final Logger logger = Logger.getLogger(FailsafeAesKeyProvider.class);
+public class SignatureSpi implements Spi {
 
     @Override
-    protected KeyUse getUse() {
-        return KeyUse.ENC;
+    public boolean isInternal() {
+        return true;
     }
 
     @Override
-    protected String getType() {
-        return KeyType.OCT;
+    public String getName() {
+        return "signature";
     }
 
     @Override
-    protected String getAlgorithm() {
-        return Algorithm.AES;
+    public Class<? extends Provider> getProviderClass() {
+        return SignatureProvider.class;
     }
 
     @Override
-    protected Logger logger() {
-        return logger;
+    public Class<? extends ProviderFactory> getProviderFactoryClass() {
+        return SignatureProviderFactory.class;
     }
+
 }
