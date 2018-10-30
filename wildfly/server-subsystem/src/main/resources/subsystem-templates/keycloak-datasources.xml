@@ -43,7 +43,7 @@
                     <xa-datasource-class>org.h2.jdbcx.JdbcDataSource</xa-datasource-class>
                 </driver>
                 <driver name="mysql" module="com.mysql.connector">
-                    <xa-datasource-class>com.mysql.jdbc.jdbc2.optional.MysqlXADataSource</xa-datasource-class>
+                    <xa-datasource-class>com.mysql.cj.jdbc.MysqlXADataSource</xa-datasource-class>
                 </driver>
             </drivers>
         </datasources>
