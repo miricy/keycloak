@@ -31,7 +31,7 @@
             </datasource>
             <datasource jndi-name="java:jboss/datasources/KeycloakDS" pool-name="KeycloakDS" enabled="true" use-java-context="true">
                 <!-- <connection-url><?KEYCLOAK_DS_CONNECTION_URL?></connection-url> -->
-                <connection-url>jdbc:mysql://www.izhiju.cn:3306/keycloak</connection-url>
+                <connection-url>jdbc:mysql://localhost:3306/keycloak</connection-url>
                 <driver>mysql</driver>
                 <security>
                     <user-name>zhiju</user-name>
