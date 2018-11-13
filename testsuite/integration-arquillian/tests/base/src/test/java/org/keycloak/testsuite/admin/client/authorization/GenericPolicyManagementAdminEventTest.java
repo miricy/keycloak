@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * Copyright 2018 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,20 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.keycloak.example.photoz.util;
+package org.keycloak.testsuite.admin.client.authorization;
 
-import javax.interceptor.InterceptorBinding;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import org.keycloak.representations.idm.RealmEventsConfigRepresentation;
+import org.keycloak.testsuite.util.RealmBuilder;
 
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
  */
-@InterceptorBinding
-@Target({ TYPE })
-@Retention(RUNTIME)
-public @interface Transaction {
+public class GenericPolicyManagementAdminEventTest extends GenericPolicyManagementTest {
+
+    @Override
+    protected void afterAbstractKeycloakTestRealmImport() {
+        super.afterAbstractKeycloakTestRealmImport();
+        RealmEventsConfigRepresentation rep = new RealmEventsConfigRepresentation();
+
+        rep.setAdminEventsEnabled(true);
+        rep.setEventsEnabled(true);
+
+        testRealmResource().updateRealmEventsConfig(rep);
+    }
 }
