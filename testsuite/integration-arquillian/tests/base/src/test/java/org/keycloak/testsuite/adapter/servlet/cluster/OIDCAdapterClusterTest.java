@@ -36,13 +36,14 @@ import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.Before;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.common.util.Retry;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.adapter.AbstractAdapterClusteredTest;
 import org.keycloak.testsuite.adapter.page.SessionPortalDistributable;
 import org.keycloak.testsuite.adapter.servlet.SessionServlet;
 import org.keycloak.testsuite.arquillian.annotation.AppServerContainer;
-import org.keycloak.testsuite.arquillian.containers.ContainerConstants;
+import org.keycloak.testsuite.utils.arquillian.ContainerConstants;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.auth.page.login.OIDCLogin;
 import org.keycloak.testsuite.util.DroneUtils;
@@ -117,8 +118,10 @@ public class OIDCAdapterClusterTest extends AbstractAdapterClusteredTest {
         String logoutUri = OIDCLoginProtocolService.logoutUrl(authServerPage.createUriBuilder())
                 .queryParam(OAuth2Constants.REDIRECT_URI, proxiedUrl).build(AuthRealm.DEMO).toString();
         driver.navigate().to(logoutUri);
-        driver.navigate().to(proxiedUrl);
-        assertCurrentUrlStartsWith(loginPage);
+        Retry.execute(() -> {
+            driver.navigate().to(proxiedUrl);
+            assertCurrentUrlStartsWith(loginPage);
+        }, 10, 300);
     }
 
     @Test
@@ -135,8 +138,10 @@ public class OIDCAdapterClusterTest extends AbstractAdapterClusteredTest {
 
         String logoutUri = proxiedUrl + "/logout";
         driver.navigate().to(logoutUri);
-        driver.navigate().to(proxiedUrl);
-        assertCurrentUrlStartsWith(loginPage);
+        Retry.execute(() -> {
+            driver.navigate().to(proxiedUrl);
+            assertCurrentUrlStartsWith(loginPage);
+        }, 10, 300);
     }
 
     private void waitForCacheReplication(String appUrl, int expectedCount) {

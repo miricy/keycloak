@@ -17,6 +17,7 @@
 package org.keycloak.testsuite.adapter.example.fuse;
 
 import static org.keycloak.testsuite.auth.page.AuthRealm.DEMO;
+import static org.keycloak.testsuite.util.URLAssert.waitUntilUrlStartsWith;
 import static org.keycloak.testsuite.utils.io.IOUtil.loadRealm;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
 
@@ -38,13 +39,14 @@ import org.keycloak.testsuite.adapter.AbstractExampleAdapterTest;
 import org.keycloak.testsuite.adapter.page.HawtioPage;
 import org.keycloak.testsuite.arquillian.AppServerTestEnricher;
 import org.keycloak.testsuite.arquillian.annotation.AppServerContainer;
-import org.keycloak.testsuite.arquillian.containers.ContainerConstants;
+import org.keycloak.testsuite.utils.arquillian.ContainerConstants;
 import org.keycloak.testsuite.arquillian.containers.SelfManagedAppContainerLifecycle;
 import org.keycloak.testsuite.auth.page.login.OIDCLogin;
 import org.keycloak.testsuite.util.DroneUtils;
 import org.keycloak.testsuite.util.JavascriptBrowser;
 import org.keycloak.testsuite.util.WaitUtils;
 
+import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 
 /**
@@ -110,10 +112,10 @@ public class EAP6Fuse6HawtioAdapterTest extends AbstractExampleAdapterTest imple
         WaitUtils.waitForPageToLoad();
 
         log.debug("log in");
+        testRealmLoginPageFuse.assertCurrent();
         testRealmLoginPageFuse.form().login("root", "password");
-        WaitUtils.waitForPageToLoad();
-        
-        assertCurrentUrlStartsWith(hawtioPage.toString() + "/welcome", DroneUtils.getCurrentDriver());
+
+        waitUntilUrlStartsWith(hawtioPage.toString() + "/welcome", 180);
 
         hawtioPage.logout();
         WaitUtils.waitForPageToLoad();
