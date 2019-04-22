@@ -85,6 +85,21 @@ TODO: Add info about Wildfly logging
     mvn -f testsuite/integration-arquillian/tests/base/pom.xml \
         -Dtest=org.keycloak.testsuite.adapter.**.*Test
 
+### Jetty
+
+At the moment we can run the testsuite with Jetty `9.1`, `9.2` and `9.4`. 
+Each version has its corresponding profile:
+
+* Jetty `9.1`: `app-server-jetty91`
+* Jetty `9.2`: `app-server-jetty92`
+* Jetty `9.4`: `app-server-jetty94`
+
+Here's how to run the tests with Jetty `9.4`:
+
+    mvn -f testsuite/integration-arquillian/pom.xml \
+        -Papp-server-jetty94 \
+        -Dtest=org.keycloak.testsuite.adapter.**.*Test
+
 ### Wildfly
     
     # Run tests
@@ -92,6 +107,19 @@ TODO: Add info about Wildfly logging
        clean install \
        -Papp-server-wildfly \
        -Dtest=org.keycloak.testsuite.adapter.**
+       
+### Tomcat
+
+We run testsuite with Tomcat 7, 8 and 9. For specific versions see properties `${tomcat[7,8,9].version}` in parent [pom.xml](../../pom.xml). 
+
+To run tests on Tomcat:
+
+````
+mvn -f testsuite/integration-arquillian/pom.xml \
+       clean install \
+       -Papp-server-tomcat[7,8,9] \
+       -Dtest=org.keycloak.testsuite.adapter.**
+````
        
 ### Wildfly with legacy non-elytron adapter
     
@@ -154,8 +182,8 @@ Assumed you downloaded `jboss-fuse-karaf-6.3.0.redhat-229.zip`
 
 ### JBoss Fuse 7.X
 
-1) Download JBoss Fuse 7 to your filesystem. It can be downloaded from http://origin-repository.jboss.org/nexus/content/groups/m2-proxy/org/jboss/fuse/fuse-karaf 
-Assumed you downloaded `fuse-karaf-7.0.0.fuse-000202.zip`
+1) Download JBoss Fuse 7 to your filesystem. It can be downloaded from http://origin-repository.jboss.org/nexus/content/groups/m2-proxy/org/jboss/fuse/fuse-karaf  (Fuse 7.1 or higher is required)
+Assumed you downloaded `fuse-karaf-7.1.0.fuse-710029.zip`
 
 2) Install to your local maven repository and change the properties according to your env (This step can be likely avoided if you somehow configure your local maven settings to point directly to Fuse repo):
 
@@ -163,9 +191,9 @@ Assumed you downloaded `fuse-karaf-7.0.0.fuse-000202.zip`
     mvn install:install-file \
       -DgroupId=org.jboss.fuse \
       -DartifactId=fuse-karaf \
-      -Dversion=7.0.0.fuse-000202 \
+      -Dversion=7.1.0.fuse-710029 \
       -Dpackaging=zip \
-      -Dfile=/mydownloads/fuse-karaf-7.0.0.fuse-000202.zip
+      -Dfile=/mydownloads/fuse-karaf-7.1.0.fuse-710029.zip
 
 
 3) Prepare Fuse and run the tests (change props according to your environment, versions etc):
@@ -175,7 +203,7 @@ Assumed you downloaded `fuse-karaf-7.0.0.fuse-000202.zip`
     mvn -f testsuite/integration-arquillian/servers/pom.xml \
       clean install \
       -Papp-server-fuse7x \
-      -Dfuse7x.version=7.0.0.fuse-000202 \
+      -Dfuse7x.version=7.1.0.fuse-710029 \
       -Dapp.server.karaf.update.config=true \
       -Dmaven.local.settings=$HOME/.m2/settings.xml \
       -Drepositories=,http://REPO-SERVER/brewroot/repos/sso-7.1-build/latest/maven/ \
@@ -260,8 +288,9 @@ This test will:
       -Dtest=MigrationTest \
       -Dmigration.mode=auto \
       -Djdbc.mvn.groupId=mysql \
-      -Djdbc.mvn.version=5.1.29 \
       -Djdbc.mvn.artifactId=mysql-connector-java \
+      -Djdbc.mvn.version=8.0.12 \
+      -Djdbc.mvn.version.legacy=5.1.38 \
       -Dkeycloak.connectionsJpa.url=jdbc:mysql://$DB_HOST/keycloak \
       -Dkeycloak.connectionsJpa.user=keycloak \
       -Dkeycloak.connectionsJpa.password=keycloak
@@ -269,7 +298,8 @@ This test will:
 The profile "test-7X-migration" indicates from which version you want to test migration. The valid values are:
 * test-70-migration - indicates migration from RHSSO 7.0 (Equivalent to Keycloak 1.9.8.Final)
 * test-71-migration - indicates migration from RHSSO 7.1 (Equivalent to Keycloak 2.5.5.Final)
-* test-72-migration - indicates migration from RHSSO 7.2 (Equivalent to Keycloak 3.4.3.Final)      
+* test-72-migration - indicates migration from RHSSO 7.2 (Equivalent to Keycloak 3.4.3.Final)
+* test-73-migration - indicates migration from RHSSO 7.3 (Equivalent to Keycloak 4.8.3.Final)
       
 ### DB migration test with manual mode
       
@@ -286,8 +316,9 @@ just exports the needed SQL into the script. This SQL script then needs to be ma
       -Dtest=MigrationTest \
       -Dmigration.mode=manual \
       -Djdbc.mvn.groupId=mysql \
-      -Djdbc.mvn.version=5.1.29 \
       -Djdbc.mvn.artifactId=mysql-connector-java \
+      -Djdbc.mvn.version=8.0.12 \
+      -Djdbc.mvn.version.legacy=5.1.38 \
       -Dkeycloak.connectionsJpa.url=jdbc:mysql://$DB_HOST/keycloak \
       -Dkeycloak.connectionsJpa.user=keycloak \
       -Dkeycloak.connectionsJpa.password=keycloak
@@ -480,17 +511,6 @@ To use a mobile browser you need to create a virtual device. The most convenient
 * **Supported mobile OS version:** iOS 11.x
 * **Run with:** `mvn clean test -Pios -Dappium.deviceName=device_name` where the device name is your device identification (e.g. `iPhone X`)
 
-## Run X.509 tests
-
-To run the X.509 client certificate authentication tests:
-
-    mvn -f testsuite/integration-arquillian/pom.xml \
-          clean install \
-	  -Pauth-server-wildfly \
-	  -Dauth.server.ssl.required \
-	  -Dbrowser=phantomjs \
-	  "-Dtest=*.x509.*"
-
 ## Disabling TLS (SSL) in the tests
 
 All tests are executed with TLS by default. In order to disable it, you need to switch the `auth.server.ssl.required` property off.
@@ -528,8 +548,7 @@ After you build the distribution, you run this command to setup servers and run 
     -Dauth.server.log.check=false \
     -Dfrontend.console.output=true \
     -Dtest=org.keycloak.testsuite.cluster.**.*Test clean install
-   
-	  
+
 ### Cluster tests with Keycloak on embedded undertow
 
     mvn -f testsuite/integration-arquillian/tests/base/pom.xml \
@@ -540,6 +559,9 @@ After you build the distribution, you run this command to setup servers and run 
     -Dauth.server.log.check=false \
     -Dfrontend.console.output=true \
     -Dtest=org.keycloak.testsuite.cluster.**.*Test clean install
+
+Note that after update, you might encounter `org.infinispan.commons.CacheException: Initial state transfer timed out for cache org.infinispan.CONFIG`
+error in some environments. This can be fixed by adding `-Djava.net.preferIPv4Stack=true` parameter to the command above.
 
 #### Run cluster tests from IDE on embedded undertow
 
@@ -581,6 +603,13 @@ For an example of a test, see [org.keycloak.testsuite.crossdc.ActionTokenCrossDC
 
 The cross DC requires setting a profile specifying used cache server by specifying
 `cache-server-infinispan` or `cache-server-jdg` profile in maven.
+
+Since JDG does not distribute `infinispan-server` zip artifact anymore, for `cache-server-jdg` profile it is
+necessary to download the artifact and install it to local Maven repository. For JDG 7.3.0, the command is the following:
+
+    mvn install:install-file \
+    -DgroupId=org.infinispan.server -DartifactId=infinispan-server -Dpackaging=zip -Dclassifier=bin -DgeneratePom=true \
+    -Dversion=9.4.6.Final-redhat-00002 -Dfile=jboss-datagrid-7.3.0-server.zip
 
 #### Run Cross-DC Tests from Maven
 

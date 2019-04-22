@@ -27,17 +27,17 @@ export interface LogoutProps {
  
 export class Logout extends React.Component<LogoutProps> {
 
-    constructor(props: LogoutProps) {
+    public constructor(props: LogoutProps) {
         super(props);
     }
     
-    private handleLogout() {
+    private handleLogout(): void {
         KeycloakService.Instance.logout(baseUrl);
     }
     
-    render() {
+    public render(): React.ReactNode {
         return (
-            <Link to="/" className="btn btn-primary btn-lg btn-sign" type="button" onClick={this.handleLogout}><Msg msgKey="doSignOut"/></Link>
+            <Link to="/" className="pf-c-button pf-m-primary" type="button" onClick={this.handleLogout}><Msg msgKey="doSignOut"/></Link>
         );
     }
 }

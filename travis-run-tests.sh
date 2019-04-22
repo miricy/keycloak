@@ -49,15 +49,6 @@ fi
 
 mvn install -B -nsu -Pdistribution -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
-if [ $1 == "old" ]; then
-    cd testsuite
-    mvn test -B -nsu -f integration-deprecated
-    mvn test -B -nsu -f jetty
-    mvn test -B -nsu -f proxy
-    mvn test -B -nsu -f tomcat7
-    mvn test -B -nsu -f tomcat8
-fi
-
 if [ $1 == "unit" ]; then
     mvn -B test -DskipTestsuite
     # Generate documentation to catch potential issues earlier than during the release
@@ -69,7 +60,7 @@ if [ $1 == "server-group1" ]; then
 fi
 
 if [ $1 == "server-group2" ]; then
-    run-server-tests org.keycloak.testsuite.ac*.**.*Test,org.keycloak.testsuite.b*.**.*Test,org.keycloak.testsuite.cli*.**.*Test,org.keycloak.testsuite.co*.**.*Test
+    run-server-tests org.keycloak.testsuite.ac*.**.*Test,org.keycloak.testsuite.cli*.**.*Test,org.keycloak.testsuite.co*.**.*Test
 fi
 
 if [ $1 == "server-group3" ]; then
@@ -102,4 +93,8 @@ if [ $1 == "crossdc-adapter" ]; then
     mvn clean test -B -nsu -Pcache-server-infinispan,auth-servers-crossdc-jboss,auth-server-wildfly,app-server-wildfly -Dtest=org.keycloak.testsuite.adapter.**.crossdc.**.* 2>&1 |
         java -cp ../../../utils/target/classes org.keycloak.testsuite.LogTrimmer
     exit ${PIPESTATUS[0]}
+fi
+
+if [ $1 == "broker" ]; then
+    run-server-tests org.keycloak.testsuite.broker.**.*Test
 fi

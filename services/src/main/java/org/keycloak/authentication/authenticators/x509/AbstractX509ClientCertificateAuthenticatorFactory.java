@@ -44,17 +44,21 @@ import static org.keycloak.authentication.authenticators.x509.AbstractX509Client
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_ISSUERDN_EMAIL;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SERIALNUMBER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SUBJECTALTNAME_EMAIL;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SUBJECTALTNAME_OTHERNAME;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SUBJECTDN;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SUBJECTDN_CN;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_CERT_SUBJECTDN_EMAIL;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_SELECTION;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.OCSPRESPONDER_CERTIFICATE;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.OCSPRESPONDER_URI;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.REGULAR_EXPRESSION;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USERNAME_EMAIL_MAPPER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USER_ATTRIBUTE_MAPPER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USER_MAPPER_SELECTION;
 import static org.keycloak.provider.ProviderConfigProperty.BOOLEAN_TYPE;
+import static org.keycloak.provider.ProviderConfigProperty.MULTIVALUED_STRING_TYPE;
 import static org.keycloak.provider.ProviderConfigProperty.STRING_TYPE;
+import static org.keycloak.provider.ProviderConfigProperty.TEXT_TYPE;
 
 /**
  * @author <a href="mailto:brat000012001@gmail.com">Peter Nalyvayko</a>
@@ -70,6 +74,7 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
             MAPPING_SOURCE_CERT_SUBJECTDN,
             MAPPING_SOURCE_CERT_SUBJECTDN_EMAIL,
             MAPPING_SOURCE_CERT_SUBJECTALTNAME_EMAIL,
+            MAPPING_SOURCE_CERT_SUBJECTALTNAME_OTHERNAME,
             MAPPING_SOURCE_CERT_SUBJECTDN_CN,
             MAPPING_SOURCE_CERT_ISSUERDN,
             MAPPING_SOURCE_CERT_ISSUERDN_EMAIL,
@@ -134,14 +139,18 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         crlDPEnabled.setName(ENABLE_CRLDP);
         crlDPEnabled.setDefaultValue(false);
         crlDPEnabled.setLabel("Enable CRL Distribution Point to check certificate revocation status");
-        crlDPEnabled.setHelpText("CRL Distribution Point is a starting point for CRL. CDP is optional, but most PKI authorities include CDP in their certificates.");
+        crlDPEnabled.setHelpText("CRL Distribution Point is a starting point for CRL. If this is ON, then CRL checking will be done based on the CRL distribution points included" +
+                " in the checked certificates. CDP is optional, but most PKI authorities include CDP in their certificates.");
 
         ProviderConfigProperty cRLRelativePath = new ProviderConfigProperty();
-        cRLRelativePath.setType(STRING_TYPE);
+        cRLRelativePath.setType(MULTIVALUED_STRING_TYPE);
         cRLRelativePath.setName(CRL_RELATIVE_PATH);
         cRLRelativePath.setDefaultValue("crl.pem");
-        cRLRelativePath.setLabel("CRL File path");
-        cRLRelativePath.setHelpText("The path to a CRL file that contains a list of revoked certificates. Paths are assumed to be relative to $jboss.server.config.dir");
+        cRLRelativePath.setLabel("CRL Path");
+        cRLRelativePath.setHelpText("Applied just if CRL checking is ON and CRL Distribution point is OFF. It contains the URL (typically 'http' or 'ldap') " +
+                "where the CRL is available. Alternatively it can contain the path to a CRL file that contains a list of revoked certificates. Paths are assumed to be relative to $jboss.server.config.dir. " +
+                "Multiple CRLs can be included, however it can affect performance as the certificate will be checked against all listed CRLs."
+        );
 
         ProviderConfigProperty oCspCheckingEnabled = new ProviderConfigProperty();
         oCspCheckingEnabled.setType(BOOLEAN_TYPE);
@@ -154,6 +163,12 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         ocspResponderUri.setName(OCSPRESPONDER_URI);
         ocspResponderUri.setLabel("OCSP Responder Uri");
         ocspResponderUri.setHelpText("Clients use OCSP Responder Uri to check certificate revocation status.");
+
+        ProviderConfigProperty ocspResponderCert = new ProviderConfigProperty();
+        ocspResponderCert.setType(TEXT_TYPE);
+        ocspResponderCert.setName(OCSPRESPONDER_CERTIFICATE);
+        ocspResponderCert.setLabel("OCSP Responder Certificate");
+        ocspResponderCert.setHelpText("Optional certificate used by the responder to sign the responses. The certificate should be in PEM format without BEGIN and END tags. It is only used if the OCSP Responder URI is set. By default, the certificate of the OCSP responder is that of the issuer of the certificate being validated or one with the OCSPSigning extension and also issued by the same CA. This option identifies the certificate of the OCSP responder when the defaults do not apply.");
 
         ProviderConfigProperty keyUsage = new ProviderConfigProperty();
         keyUsage.setType(STRING_TYPE);
@@ -182,6 +197,7 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
                 cRLRelativePath,
                 oCspCheckingEnabled,
                 ocspResponderUri,
+                ocspResponderCert,
                 keyUsage,
                 extendedKeyUsage,
                 identityConfirmationPageDisallowed);
