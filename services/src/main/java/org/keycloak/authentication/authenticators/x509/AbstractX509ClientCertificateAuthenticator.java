@@ -23,6 +23,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.function.Function;
 
+import javax.security.auth.x500.X500Principal;
 import javax.ws.rs.core.Response;
 
 import org.bouncycastle.asn1.x500.X500Name;
@@ -30,6 +31,7 @@ import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
+import org.keycloak.events.Details;
 import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -52,6 +54,7 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
     public static final String ENABLE_CRL = "x509-cert-auth.crl-checking-enabled";
     public static final String ENABLE_OCSP = "x509-cert-auth.ocsp-checking-enabled";
     public static final String ENABLE_CRLDP = "x509-cert-auth.crldp-checking-enabled";
+    public static final String CANONICAL_DN = "x509-cert-auth.canonical-dn-enabled";
     public static final String CRL_RELATIVE_PATH = "x509-cert-auth.crl-relative-path";
     public static final String OCSPRESPONDER_URI = "x509-cert-auth.ocsp-responder-uri";
     public static final String OCSPRESPONDER_CERTIFICATE = "x509-cert-auth.ocsp-responder-certificate";
@@ -131,13 +134,20 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
             String pattern = config.getRegularExpression();
 
             UserIdentityExtractor extractor = null;
+            Function<X509Certificate[], String> func = null;
             switch(userIdentitySource) {
 
                 case SUBJECTDN:
-                    extractor = UserIdentityExtractor.getPatternIdentityExtractor(pattern, certs -> certs[0].getSubjectDN().getName());
+                    func = config.isCanonicalDnEnabled() ?
+                        certs -> certs[0].getSubjectX500Principal().getName(X500Principal.CANONICAL) :
+                        certs -> certs[0].getSubjectDN().getName();
+                    extractor = UserIdentityExtractor.getPatternIdentityExtractor(pattern, func);
                     break;
                 case ISSUERDN:
-                    extractor = UserIdentityExtractor.getPatternIdentityExtractor(pattern, certs -> certs[0].getIssuerDN().getName());
+                    func = config.isCanonicalDnEnabled() ?
+                        certs -> certs[0].getIssuerX500Principal().getName(X500Principal.CANONICAL) :
+                        certs -> certs[0].getIssuerDN().getName();
+                    extractor = UserIdentityExtractor.getPatternIdentityExtractor(pattern, func);
                     break;
                 case SERIALNUMBER:
                     extractor = UserIdentityExtractor.getPatternIdentityExtractor(DEFAULT_MATCH_ALL_EXPRESSION, certs -> certs[0].getSerialNumber().toString());
@@ -224,6 +234,29 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
         }
         return null;
     }
+
+
+    // Saving some notes for audit to authSession as the event may not be necessarily triggered in this HTTP request where the certificate was parsed
+    // For example if there is confirmation page enabled, it will be in the additional request
+    protected void saveX509CertificateAuditDataToAuthSession(AuthenticationFlowContext context,
+                                                             X509Certificate cert) {
+        context.getAuthenticationSession().setAuthNote(Details.X509_CERTIFICATE_SERIAL_NUMBER, cert.getSerialNumber().toString());
+        context.getAuthenticationSession().setAuthNote(Details.X509_CERTIFICATE_SUBJECT_DISTINGUISHED_NAME, cert.getSubjectDN().toString());
+        context.getAuthenticationSession().setAuthNote(Details.X509_CERTIFICATE_ISSUER_DISTINGUISHED_NAME, cert.getIssuerDN().toString());
+    }
+
+    protected void recordX509CertificateAuditDataViaContextEvent(AuthenticationFlowContext context) {
+        recordX509DetailFromAuthSessionToEvent(context, Details.X509_CERTIFICATE_SERIAL_NUMBER);
+        recordX509DetailFromAuthSessionToEvent(context, Details.X509_CERTIFICATE_SUBJECT_DISTINGUISHED_NAME);
+        recordX509DetailFromAuthSessionToEvent(context, Details.X509_CERTIFICATE_ISSUER_DISTINGUISHED_NAME);
+    }
+
+    private void recordX509DetailFromAuthSessionToEvent(AuthenticationFlowContext context, String detailName) {
+        String detailValue = context.getAuthenticationSession().getAuthNote(detailName);
+        context.getEvent().detail(detailName, detailValue);
+    }
+
+
     // Purely for unit testing
     public UserIdentityExtractor getUserIdentityExtractor(X509AuthenticatorConfigModel config) {
         return UserIdentityExtractorBuilder.fromConfig(config);

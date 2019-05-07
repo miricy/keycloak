@@ -9,6 +9,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
           
         <script>
+            <#if properties.developmentMode?has_content && properties.developmentMode == "true">
+            var developmentMode = true;
+            var reactRuntime = 'react.development.js';
+            var reactDOMRuntime = 'react-dom.development.js';
+            var reactRouterRuntime = 'react-router-dom.js';
+            <#else>
+            var developmentMode = false;
+            var reactRuntime = 'react.production.min.js';
+            var reactDOMRuntime = 'react-dom.production.min.js';
+            var reactRouterRuntime = 'react-router-dom.min.js';
+            </#if>
             var authUrl = '${authUrl}';
             var baseUrl = '${baseUrl}';
             var realm = '${realm.name}';
@@ -65,9 +76,6 @@
             </#list>
         </#if>
         
-   <!-- TODO: We should save these css and js into variables and then load in
-        main.ts for better performance.  These might be loaded twice.
-        -->
         <#if properties.scripts?has_content>
             <#list properties.scripts?split(' ') as script>
         <script type="text/javascript" src="${resourceUrl}/${script}"></script>
@@ -80,21 +88,19 @@
         <script>
             var keycloak = Keycloak('${authUrl}/realms/${realm.name}/account/keycloak.json');
             keycloak.init({onLoad: 'check-sso'}).success(function(authenticated) {
-                loadjs("/node_modules/react/umd/react.development.js", function() {
-                   loadjs("/node_modules/react-dom/umd/react-dom.development.js", function() {
-                        loadjs("/node_modules/systemjs/dist/system.src.js", function() {
-                            loadjs("/systemjs.config.js", function() {
-                                System.import('${resourceUrl}/Main.js').catch(function (err) {
-                                    console.error(err);
-                                });
-                                if (!keycloak.authenticated) {
-                                    document.getElementById("signInButton").style.display='inline';
-                                    document.getElementById("signInLink").style.display='inline';
-                                } else {
-                                    document.getElementById("signOutButton").style.display='inline';
-                                    document.getElementById("signOutLink").style.display='inline';
-                                }
-                            });
+                toggleReact();
+                if (!keycloak.authenticated) {
+                    document.getElementById("signInButton").style.display='inline';
+                    document.getElementById("signInLink").style.display='inline';
+                } else {
+                    document.getElementById("signOutButton").style.display='inline';
+                    document.getElementById("signOutLink").style.display='inline';
+                }
+                    
+                loadjs("/node_modules/systemjs/dist/system.src.js", function() {
+                    loadjs("/systemjs.config.js", function() {
+                        System.import('${resourceUrl}/Main.js').catch(function (err) {
+                            console.error(err);
                         });
                     });
                 });
@@ -124,7 +130,7 @@
         
 <div class="pf-c-background-image">
   <svg xmlns="http://www.w3.org/2000/svg" class="pf-c-background-image__filter" width="0" height="0">
-    <filter id="image_overlay" width="">
+    <filter id="image_overlay">
       <feColorMatrix type="matrix" values="1 0 0 0 0
               1 0 0 0 0
               1 0 0 0 0
@@ -147,13 +153,13 @@
         </div>
         <div class="pf-c-page__header-tools">
             <#if referrer?has_content && referrer_uri?has_content>
-            <div class="pf-c-page__header-tools-group pf-m-icons pf-screen-reader">
+            <div class="pf-c-page__header-tools-group pf-m-icons">
               <a href="${referrer_uri}" id="referrer" tabindex="0"><span class="pf-icon pf-icon-arrow"></span>${msg("backTo",referrerName)}</a>
             </div>
             </#if>
             
             <#if realm.internationalizationEnabled  && supportedLocales?size gt 1>
-            <div class="pf-c-page__header-tools-group pf-screen-reader pf-m-icons">
+            <div class="pf-c-page__header-tools-group pf-m-icons">
               <div id="landing-locale-dropdown" class="pf-c-dropdown">
                 <button onclick="toggleLocaleDropdown();" class="pf-c-dropdown__toggle pf-m-plain" id="landing-locale-dropdown-button" aria-expanded="false" aria-haspopup="true">
                     <span class="pf-c-dropdown__toggle-text">
@@ -174,7 +180,7 @@
             </div>
             </#if>
             
-            <div class="pf-c-page__header-tools-group pf-m-icons pf-screen-reader">
+            <div class="pf-c-page__header-tools-group pf-m-icons">
               <button id="signInButton" tabindex="0" style="display:none" onclick="keycloak.login();" class="pf-c-button pf-m-primary" type="button">${msg("doLogIn")}</button>
               <button id="signOutButton" tabindex="0" style="display:none" onclick="keycloak.logout();" class="pf-c-button pf-m-primary" type="button">${msg("doSignOut")}</button>
             </div>
@@ -245,10 +251,10 @@
                     <h6>${msg("accountSecurityIntroMessage")}</h6>
                 </div>
                 <div class="pf-c-card__body pf-c-content">
-                    <h5 id="changePasswordLink"><a href="#/app/password">${msg("changePasswordHtmlTitle")}</a></h5>
-                    <h5 id="authenticatorLink"><a href="#/app/authenticator">${msg("authenticatorTitle")}</a></h5>
-                    <h5 id="deviceActivityLink"><a href="#/app/device-activity">${msg("deviceActivityHtmlTitle")}</a></h5>
-                    <h5 id="linkedAccountsLink" style="display:none"><a href="#/app/linked-accounts">${msg("linkedAccountsHtmlTitle")}</a></h5>
+                    <h5 id="changePasswordLink"><a href="#/app/security/password">${msg("changePasswordHtmlTitle")}</a></h5>
+                    <h5 id="authenticatorLink"><a href="#/app/security/authenticator">${msg("authenticatorTitle")}</a></h5>
+                    <h5 id="deviceActivityLink"><a href="#/app/security/device-activity">${msg("deviceActivityHtmlTitle")}</a></h5>
+                    <h5 id="linkedAccountsLink" style="display:none"><a href="#/app/security/linked-accounts">${msg("linkedAccountsHtmlTitle")}</a></h5>
                 </div>
               </div>
             </div>
