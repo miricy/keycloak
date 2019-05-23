@@ -1,8 +1,8 @@
 
 var content = [
     {
-        path: 'account',
-        label: 'account',
+        path: 'personal-info',
+        label: 'personalInfoHtmlTitle',
         modulePath: '/app/content/account-page/AccountPage',
         componentName: 'AccountPage'
     },
@@ -43,8 +43,8 @@ var content = [
         componentName: 'ApplicationsPage'
     },
     {
-        path: 'my-resources',
-        label: 'myResources',
+        path: 'resources',
+        label: 'resources',
         modulePath: '/app/content/my-resources-page/MyResourcesPage',
         componentName: 'MyResourcesPage',
         hidden: !features.isMyResourcesEnabled
