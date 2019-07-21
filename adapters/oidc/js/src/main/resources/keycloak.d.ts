@@ -34,7 +34,8 @@ declare namespace Keycloak {
 	type KeycloakResponseMode = 'query'|'fragment';
 	type KeycloakResponseType = 'code'|'id_token token'|'code id_token token';
 	type KeycloakFlow = 'standard'|'implicit'|'hybrid';
-	type KeycloakPromiseType = 'native'
+	type KeycloakPromiseType = 'native';
+	type KeycloakPkceMethod = 'S256';
 
 	interface KeycloakInitOptions {
 		/**
@@ -117,6 +118,13 @@ declare namespace Keycloak {
 		 * Keycloak specific promise objects.
 		 */
 		promiseType?: KeycloakPromiseType;
+
+		/**
+		 * Configures the Proof Key for Code Exchange (PKCE) method to use.
+		 * The currently allowed method is 'S256'.
+		 * If not configured, PKCE will not be used.
+		 */
+		pkceMethod?: KeycloakPkceMethod;
 	}
 
 	interface KeycloakLoginOptions {
@@ -230,8 +238,8 @@ declare namespace Keycloak {
 		nonce?: string;
 		sub?: string;
 		session_state?: string;
-		realm_access?: { roles: string[] };
-		resource_access?: string[];
+		realm_access?: KeycloakRoles;
+		resource_access?: KeycloakResourceAccess;
 	}
 
 	interface KeycloakResourceAccess {

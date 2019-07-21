@@ -1,4 +1,4 @@
-module.controller('GroupListCtrl', function($scope, $route, $q, realm, Groups, GroupsCount, Group, GroupChildren, Notifications, $location, Dialog) {
+module.controller('GroupListCtrl', function($scope, $route, $q, realm, Groups, GroupsCount, Group, GroupChildren, Notifications, $location, Dialog, ComponentUtils) {
     $scope.realm = realm;
     $scope.groupList = [
         {
@@ -47,9 +47,19 @@ module.controller('GroupListCtrl', function($scope, $route, $q, realm, Groups, G
                 {
                     "id" : "realm",
                     "name": "Groups",
-                    "subGroups" : groups
+                    "subGroups": ComponentUtils.sortGroups('name', groups)
                 }
             ];
+            if (angular.isDefined(search) && search !== '') {
+                // Add highlight for concrete text match
+                setTimeout(function () {
+                    document.querySelectorAll('span').forEach(function (element) {
+                        if (element.textContent.indexOf(search) != -1) {
+                            angular.element(element).addClass('highlight');
+                        }
+                    });
+                }, 500);
+            }
         }, function (failed) {
             Notifications.error(failed);
         });
@@ -600,4 +610,3 @@ module.controller('DefaultGroupsCtrl', function($scope, $q, realm, Groups, Group
     }
 
 });
-

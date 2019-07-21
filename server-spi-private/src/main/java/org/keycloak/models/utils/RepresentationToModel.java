@@ -83,6 +83,7 @@ import org.keycloak.models.UserConsentModel;
 import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
+import org.keycloak.models.cache.UserCache;
 import org.keycloak.models.credential.PasswordUserCredentialModel;
 import org.keycloak.policy.PasswordPolicyNotMetException;
 import org.keycloak.provider.ProviderConfigProperty;
@@ -115,6 +116,7 @@ import org.keycloak.representations.idm.UserFederationMapperRepresentation;
 import org.keycloak.representations.idm.UserFederationProviderRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.AbstractPolicyRepresentation;
+import org.keycloak.representations.idm.authorization.DecisionStrategy;
 import org.keycloak.representations.idm.authorization.PermissionTicketRepresentation;
 import org.keycloak.representations.idm.authorization.PolicyEnforcementMode;
 import org.keycloak.representations.idm.authorization.PolicyRepresentation;
@@ -1681,6 +1683,10 @@ public class RepresentationToModel {
             }
             hashedCred.setCreatedDate(cred.getCreatedDate());
             session.userCredentialManager().createCredential(realm, user, hashedCred);
+            UserCache userCache = session.userCache();
+            if (userCache != null) {
+                userCache.evict(realm, user);
+            }
         }
     }
 
@@ -2062,6 +2068,14 @@ public class RepresentationToModel {
 
         resourceServer.setPolicyEnforcementMode(rep.getPolicyEnforcementMode());
         resourceServer.setAllowRemoteResourceManagement(rep.isAllowRemoteResourceManagement());
+
+        DecisionStrategy decisionStrategy = rep.getDecisionStrategy();
+        
+        if (decisionStrategy == null) {
+            decisionStrategy = DecisionStrategy.UNANIMOUS;
+        }
+        
+        resourceServer.setDecisionStrategy(decisionStrategy);
 
         for (ScopeRepresentation scope : rep.getScopes()) {
             toModel(scope, resourceServer, authorization);
@@ -2620,6 +2634,9 @@ public class RepresentationToModel {
     }
 
     public static ResourceServer createResourceServer(ClientModel client, KeycloakSession session, boolean addDefaultRoles) {
+        if (client.isBearerOnly() || client.isPublicClient()) {
+            throw new RuntimeException("Only confidential clients are allowed to set authorization settings");
+        }
         AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
         UserModel serviceAccount = session.users().getServiceAccount(client);
 

@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-tests</artifactId>
-        <version>7.0.0-SNAPSHOT</version>
+        <version>8.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>integration-arquillian-tests-other</artifactId>
@@ -141,12 +141,6 @@
             <id>jpa-performance</id>
             <modules>
                 <module>jpa-performance</module>
-            </modules>
-        </profile>
-        <profile>
-            <id>nodejs-adapter-tests</id>
-            <modules>
-                <module>nodejs_adapter</module>
             </modules>
         </profile>
         <profile>
