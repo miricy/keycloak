@@ -93,6 +93,10 @@ public class UrlBean {
         return Urls.firstBrokerLoginProcessor(baseURI, realm).toString();
     }
 
+    public String getResourcesUrl() {
+        return Urls.themeRoot(baseURI).toString() + "/" + theme.getType().toString().toLowerCase() +"/" + theme.getName();
+    }
+
     public String getOauthAction() {
         if (this.actionuri != null) {
             return this.actionuri.getPath();

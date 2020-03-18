@@ -82,7 +82,11 @@ public interface LoginFormsProvider extends Provider {
 
     Response createErrorPage(Response.Status status);
 
+    Response createWebAuthnErrorPage();
+
     Response createOAuthGrant();
+
+    Response createSelectAuthenticator();
 
     Response createCode();
 

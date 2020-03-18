@@ -17,21 +17,13 @@
 
 package org.keycloak.testsuite.broker;
 
-import java.net.URI;
-import java.util.Collections;
-import java.util.List;
-
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriBuilderException;
-
-import org.hamcrest.Matchers;
 import org.apache.commons.lang.StringUtils;
-import org.jboss.arquillian.container.test.api.Deployment;
+import org.hamcrest.Matchers;
 import org.jboss.arquillian.graphene.page.Page;
-import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.After;
 import org.junit.Before;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.common.util.Retry;
 import org.keycloak.models.utils.TimeBasedOTP;
 import org.keycloak.protocol.saml.SamlProtocol;
 import org.keycloak.representations.idm.ClientRepresentation;
@@ -40,9 +32,8 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.services.resources.RealmsResource;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.Assert;
-import org.keycloak.common.util.Retry;
-import org.keycloak.testsuite.auth.page.account2.ChangePasswordPage;
-import org.keycloak.testsuite.client.KeycloakTestingClient;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.pages.AccountApplicationsPage;
 import org.keycloak.testsuite.pages.AccountFederatedIdentityPage;
 import org.keycloak.testsuite.pages.AccountPasswordPage;
@@ -59,11 +50,15 @@ import org.keycloak.testsuite.pages.OAuthGrantPage;
 import org.keycloak.testsuite.pages.ProceedPage;
 import org.keycloak.testsuite.pages.UpdateAccountInformationPage;
 import org.keycloak.testsuite.pages.VerifyEmailPage;
-import org.keycloak.testsuite.runonserver.RunOnServerDeployment;
-import org.keycloak.testsuite.util.FlowUtil;
 import org.keycloak.testsuite.util.MailServer;
 import org.keycloak.testsuite.util.UserBuilder;
 import org.openqa.selenium.TimeoutException;
+
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriBuilderException;
+import java.net.URI;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -76,6 +71,7 @@ import static org.keycloak.testsuite.broker.BrokerTestTools.waitForPage;
 /**
  * No test methods there. Just some useful common functionality
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
     protected static final String ATTRIBUTE_VALUE = "attribute.value";
@@ -127,9 +123,6 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
     @Page
     protected OAuthGrantPage grantPage;
-
-    @Page
-    protected ChangePasswordPage changePasswordPage;
 
     protected TimeBasedOTP totp = new TimeBasedOTP();
 
@@ -189,11 +182,6 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
     protected void assertNumFederatedIdentities(String userId, int expected) {
         assertEquals(expected, adminClient.realm(bc.consumerRealmName()).users().get(userId).getFederatedIdentity().size());
-    }
-
-    @Deployment
-    public static WebArchive deploy() {
-        return RunOnServerDeployment.create(BrokerRunOnServerUtil.class, FlowUtil.class, KeycloakTestingClient.class);
     }
 
     protected void logInAsUserInIDP() {
@@ -257,12 +245,15 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
         logoutFromRealm(realm, null);
     }
 
-    protected void logoutFromRealm(String realm, String initiatingIdp) {
+    protected void logoutFromRealm(String realm, String initiatingIdp) { logoutFromRealm(realm, initiatingIdp, null); }
+
+    protected void logoutFromRealm(String realm, String initiatingIdp, String tokenHint) {
         driver.navigate().to(BrokerTestTools.getAuthRoot(suiteContext)
                 + "/auth/realms/" + realm
                 + "/protocol/" + "openid-connect"
                 + "/logout?redirect_uri=" + encodeUrl(getAccountUrl(realm))
                 + (!StringUtils.isBlank(initiatingIdp) ? "&initiating_idp=" + initiatingIdp : "")
+                + (!StringUtils.isBlank(tokenHint) ? "&id_token_hint=" + tokenHint : "")
         );
 
         try {
@@ -284,10 +275,16 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
 
     protected void assertLoggedInAccountManagement() {
-        waitForPage(driver, "keycloak account management", true);
+        waitForAccountManagementTitle();
         Assert.assertTrue(accountUpdateProfilePage.isCurrent());
         Assert.assertEquals(accountUpdateProfilePage.getUsername(), bc.getUserLogin());
         Assert.assertEquals(accountUpdateProfilePage.getEmail(), bc.getUserEmail());
+    }
+
+    protected void waitForAccountManagementTitle() {
+        boolean isProduct = adminClient.serverInfo().getInfo().getProfileInfo().getName().equals("product");
+        String title = isProduct ? "rh-sso account management" : "keycloak account management";
+        waitForPage(driver, title, true);
     }
 
 

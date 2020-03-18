@@ -27,8 +27,6 @@ import org.keycloak.common.ClientConnection;
 import org.keycloak.common.Profile;
 import org.keycloak.common.util.Time;
 import org.keycloak.credential.CredentialModel;
-import org.keycloak.credential.CredentialProvider;
-import org.keycloak.credential.PasswordCredentialProvider;
 import org.keycloak.email.EmailException;
 import org.keycloak.email.EmailTemplateProvider;
 import org.keycloak.events.Details;
@@ -47,6 +45,7 @@ import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserConsentModel;
+import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserManager;
 import org.keycloak.models.UserModel;
@@ -78,8 +77,8 @@ import org.keycloak.utils.ProfileHelper;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
-import javax.ws.rs.NotFoundException;
 import javax.ws.rs.NotSupportedException;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -196,10 +195,16 @@ public class UserResource {
     }
 
     public static void updateUserFromRep(UserModel user, UserRepresentation rep, Set<String> attrsToRemove, RealmModel realm, KeycloakSession session, boolean removeMissingRequiredActions) {
-        if (rep.getUsername() != null && realm.isEditUsernameAllowed()) {
+        if (rep.getUsername() != null && realm.isEditUsernameAllowed() && !realm.isRegistrationEmailAsUsername()) {
             user.setUsername(rep.getUsername());
         }
-        if (rep.getEmail() != null) user.setEmail(rep.getEmail());
+        if (rep.getEmail() != null) {
+            String email = rep.getEmail();
+            user.setEmail(email);
+            if(realm.isRegistrationEmailAsUsername()) {
+                user.setUsername(email);
+            }
+        }
         if (rep.getEmail() == "") user.setEmail(null);
         if (rep.getFirstName() != null) user.setFirstName(rep.getFirstName());
         if (rep.getLastName() != null) user.setLastName(rep.getLastName());
@@ -576,7 +581,12 @@ public class UserResource {
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
     public void disableCredentialType(List<String> credentialTypes) {
-        throw new NotSupportedException("Not supported to disable credentials. Only credentials removal is supported");
+        auth.users().requireManage(user);
+        if (credentialTypes == null) return;
+        for (String type : credentialTypes) {
+            session.userCredentialManager().disableCredentialType(realm, user, type);
+
+        }
     }
 
     /**
@@ -597,8 +607,7 @@ public class UserResource {
         }
 
         try {
-            PasswordCredentialProvider provider = (PasswordCredentialProvider)session.getProvider(CredentialProvider.class, "keycloak-password");
-            provider.createCredential(realm, user, cred.getValue());
+            session.userCredentialManager().updateCredential(realm, user, UserCredentialModel.password(cred.getValue(), false));
         } catch (IllegalStateException ise) {
             throw new BadRequestException("Resetting to N old passwords is not allowed.");
         } catch (ReadOnlyException mre) {
@@ -623,6 +632,24 @@ public class UserResource {
         List<CredentialModel> models = session.userCredentialManager().getStoredCredentials(realm, user);
         models.forEach(c -> c.setSecretData(null));
         return models.stream().map(ModelToRepresentation::toRepresentation).collect(Collectors.toList());
+    }
+
+
+    /**
+     * Return credential types, which are provided by the user storage where user is stored. Returned values can contain for example "password", "otp" etc.
+     * This will always return empty list for "local" users, which are not backed by any user storage
+     *
+     * @return
+     */
+    @GET
+    @Path("configured-user-storage-credential-types")
+    @NoCache
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<String> getConfiguredUserStorageCredentialTypes() {
+        // This has "requireManage" due the compatibility with "credentials()" endpoint. Strictly said, it is reading endpoint, not writing,
+        // so may be revisited if to rather use "requireView" here in the future.
+        auth.users().requireManage(user);
+        return session.userCredentialManager().getConfiguredUserStorageCredentialTypes(realm, user);
     }
 
 
@@ -825,16 +852,17 @@ public class UserResource {
     @Produces(MediaType.APPLICATION_JSON)
     public List<GroupRepresentation> groupMembership(@QueryParam("search") String search,
                                                      @QueryParam("first") Integer firstResult,
-                                                     @QueryParam("max") Integer maxResults) {
+                                                     @QueryParam("max") Integer maxResults,
+                                                     @QueryParam("briefRepresentation") @DefaultValue("true") boolean briefRepresentation) {
         auth.users().requireView(user);
         List<GroupRepresentation> results;
 
         if (Objects.nonNull(search) && Objects.nonNull(firstResult) && Objects.nonNull(maxResults)) {
-            results = ModelToRepresentation.searchForGroupByName(user, false, search.trim(), firstResult, maxResults);
+            results = ModelToRepresentation.searchForGroupByName(user, !briefRepresentation, search.trim(), firstResult, maxResults);
         } else if(Objects.nonNull(firstResult) && Objects.nonNull(maxResults)) {
-            results = ModelToRepresentation.toGroupHierarchy(user, false, firstResult, maxResults);
+            results = ModelToRepresentation.toGroupHierarchy(user, !briefRepresentation, firstResult, maxResults);
         } else {
-            results = ModelToRepresentation.toGroupHierarchy(user, false);
+            results = ModelToRepresentation.toGroupHierarchy(user, !briefRepresentation);
         }
 
         return results;

@@ -55,6 +55,49 @@ import java.util.stream.Collectors;
  * @version $Revision: 1 $
  */
 public class ModelToRepresentation {
+
+    public static Set<String> REALM_EXCLUDED_ATTRIBUTES = new HashSet<>();
+    static {
+        REALM_EXCLUDED_ATTRIBUTES.add("displayName");
+        REALM_EXCLUDED_ATTRIBUTES.add("displayNameHtml");
+        REALM_EXCLUDED_ATTRIBUTES.add("defaultSignatureAlgorithm");
+        REALM_EXCLUDED_ATTRIBUTES.add("bruteForceProtected");
+        REALM_EXCLUDED_ATTRIBUTES.add("permanentLockout");
+        REALM_EXCLUDED_ATTRIBUTES.add("maxFailureWaitSeconds");
+        REALM_EXCLUDED_ATTRIBUTES.add("waitIncrementSeconds");
+        REALM_EXCLUDED_ATTRIBUTES.add("quickLoginCheckMilliSeconds");
+        REALM_EXCLUDED_ATTRIBUTES.add("minimumQuickLoginWaitSeconds");
+        REALM_EXCLUDED_ATTRIBUTES.add("maxDeltaTimeSeconds");
+        REALM_EXCLUDED_ATTRIBUTES.add("failureFactor");
+        REALM_EXCLUDED_ATTRIBUTES.add("actionTokenGeneratedByAdminLifespan");
+        REALM_EXCLUDED_ATTRIBUTES.add("actionTokenGeneratedByUserLifespan");
+        REALM_EXCLUDED_ATTRIBUTES.add("offlineSessionMaxLifespanEnabled");
+        REALM_EXCLUDED_ATTRIBUTES.add("offlineSessionMaxLifespan");
+
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRpEntityName");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicySignatureAlgorithms");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRpId");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAttestationConveyancePreference");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAuthenticatorAttachment");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRequireResidentKey");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyUserVerificationRequirement");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyCreateTimeout");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAvoidSameAuthenticatorRegister");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAcceptableAaguids");
+
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRpEntityNamePasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicySignatureAlgorithmsPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRpIdPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAttestationConveyancePreferencePasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAuthenticatorAttachmentPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyRequireResidentKeyPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyUserVerificationRequirementPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyCreateTimeoutPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAvoidSameAuthenticatorRegisterPasswordless");
+        REALM_EXCLUDED_ATTRIBUTES.add("webAuthnPolicyAcceptableAaguidsPasswordless");
+    }
+
+
     public static void buildGroupPath(StringBuilder sb, GroupModel group) {
         if (group.getParent() != null) {
             buildGroupPath(sb, group.getParent());
@@ -175,15 +218,13 @@ public class ModelToRepresentation {
 
         rep.setNotBefore(session.users().getNotBeforeOfUser(realm, user));
 
-        List<String> reqActions = new ArrayList<String>();
         Set<String> requiredActions = user.getRequiredActions();
-        reqActions.addAll(requiredActions);
+        List<String> reqActions = new ArrayList<>(requiredActions);
 
         rep.setRequiredActions(reqActions);
 
         if (user.getAttributes() != null && !user.getAttributes().isEmpty()) {
-            Map<String, List<String>> attrs = new HashMap<>();
-            attrs.putAll(user.getAttributes());
+            Map<String, List<String>> attrs = new HashMap<>(user.getAttributes());
             rep.setAttributes(attrs);
         }
 
@@ -296,10 +337,10 @@ public class ModelToRepresentation {
             rep.setEventsExpiration(realm.getEventsExpiration());
         }
         if (realm.getEventsListeners() != null) {
-            rep.setEventsListeners(new LinkedList<String>(realm.getEventsListeners()));
+            rep.setEventsListeners(new LinkedList<>(realm.getEventsListeners()));
         }
         if (realm.getEnabledEventTypes() != null) {
-            rep.setEnabledEventTypes(new LinkedList<String>(realm.getEnabledEventTypes()));
+            rep.setEnabledEventTypes(new LinkedList<>(realm.getEnabledEventTypes()));
         }
 
         rep.setAdminEventsEnabled(realm.isAdminEventsEnabled());
@@ -345,6 +386,7 @@ public class ModelToRepresentation {
         rep.setOtpPolicyType(otpPolicy.getType());
         rep.setOtpPolicyLookAheadWindow(otpPolicy.getLookAheadWindow());
         rep.setOtpSupportedApplications(otpPolicy.getSupportedApplications());
+
         WebAuthnPolicy webAuthnPolicy = realm.getWebAuthnPolicy();
         rep.setWebAuthnPolicyRpEntityName(webAuthnPolicy.getRpEntityName());
         rep.setWebAuthnPolicySignatureAlgorithms(webAuthnPolicy.getSignatureAlgorithm());
@@ -356,6 +398,19 @@ public class ModelToRepresentation {
         rep.setWebAuthnPolicyCreateTimeout(webAuthnPolicy.getCreateTimeout());
         rep.setWebAuthnPolicyAvoidSameAuthenticatorRegister(webAuthnPolicy.isAvoidSameAuthenticatorRegister());
         rep.setWebAuthnPolicyAcceptableAaguids(webAuthnPolicy.getAcceptableAaguids());
+
+        webAuthnPolicy = realm.getWebAuthnPolicyPasswordless();
+        rep.setWebAuthnPolicyPasswordlessRpEntityName(webAuthnPolicy.getRpEntityName());
+        rep.setWebAuthnPolicyPasswordlessSignatureAlgorithms(webAuthnPolicy.getSignatureAlgorithm());
+        rep.setWebAuthnPolicyPasswordlessRpId(webAuthnPolicy.getRpId());
+        rep.setWebAuthnPolicyPasswordlessAttestationConveyancePreference(webAuthnPolicy.getAttestationConveyancePreference());
+        rep.setWebAuthnPolicyPasswordlessAuthenticatorAttachment(webAuthnPolicy.getAuthenticatorAttachment());
+        rep.setWebAuthnPolicyPasswordlessRequireResidentKey(webAuthnPolicy.getRequireResidentKey());
+        rep.setWebAuthnPolicyPasswordlessUserVerificationRequirement(webAuthnPolicy.getUserVerificationRequirement());
+        rep.setWebAuthnPolicyPasswordlessCreateTimeout(webAuthnPolicy.getCreateTimeout());
+        rep.setWebAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister(webAuthnPolicy.isAvoidSameAuthenticatorRegister());
+        rep.setWebAuthnPolicyPasswordlessAcceptableAaguids(webAuthnPolicy.getAcceptableAaguids());
+
         if (realm.getBrowserFlow() != null) rep.setBrowserFlow(realm.getBrowserFlow().getAlias());
         if (realm.getRegistrationFlow() != null) rep.setRegistrationFlow(realm.getRegistrationFlow().getAlias());
         if (realm.getDirectGrantFlow() != null) rep.setDirectGrantFlow(realm.getDirectGrantFlow().getAlias());
@@ -365,8 +420,7 @@ public class ModelToRepresentation {
 
         List<String> defaultRoles = realm.getDefaultRoles();
         if (!defaultRoles.isEmpty()) {
-            List<String> roleStrings = new ArrayList<String>();
-            roleStrings.addAll(defaultRoles);
+            List<String> roleStrings = new ArrayList<>(defaultRoles);
             rep.setDefaultRoles(roleStrings);
         }
         List<GroupModel> defaultGroups = realm.getDefaultGroups();
@@ -379,8 +433,8 @@ public class ModelToRepresentation {
         }
 
         List<RequiredCredentialModel> requiredCredentialModels = realm.getRequiredCredentials();
-        if (requiredCredentialModels.size() > 0) {
-            rep.setRequiredCredentials(new HashSet<String>());
+        if (!requiredCredentialModels.isEmpty()) {
+            rep.setRequiredCredentials(new HashSet<>());
             for (RequiredCredentialModel cred : requiredCredentialModels) {
                 rep.getRequiredCredentials().add(cred.getType());
             }
@@ -396,7 +450,7 @@ public class ModelToRepresentation {
 
         rep.setInternationalizationEnabled(realm.isInternationalizationEnabled());
         if (realm.getSupportedLocales() != null) {
-            rep.setSupportedLocales(new HashSet<String>());
+            rep.setSupportedLocales(new HashSet<>());
             rep.getSupportedLocales().addAll(realm.getSupportedLocales());
         }
         rep.setDefaultLocale(realm.getDefaultLocale());
@@ -406,8 +460,7 @@ public class ModelToRepresentation {
             exportGroups(realm, rep);
         }
 
-        Map<String, String> attributes = realm.getAttributes();
-        rep.setAttributes(attributes);
+        rep.setAttributes(stripRealmAttributesIncludedAsFields(realm.getAttributes()));
 
         if (!internal) {
             rep = StripSecretsUtils.strip(rep);
@@ -416,14 +469,32 @@ public class ModelToRepresentation {
         return rep;
     }
 
+    public static Map<String, String> stripRealmAttributesIncludedAsFields(Map<String, String> attributes) {
+        Map<String, String> a = new HashMap<>();
+
+        for (Map.Entry<String, String> e : attributes.entrySet()) {
+            if (REALM_EXCLUDED_ATTRIBUTES.contains(e.getKey())) {
+                continue;
+            }
+
+            if (e.getKey().startsWith("_browser_header")) {
+                continue;
+            }
+
+            a.put(e.getKey(), e.getValue());
+        }
+
+        return a;
+    }
+
     public static void exportGroups(RealmModel realm, RealmRepresentation rep) {
         List<GroupRepresentation> groups = toGroupHierarchy(realm, true);
         rep.setGroups(groups);
     }
 
     public static void exportAuthenticationFlows(RealmModel realm, RealmRepresentation rep) {
-        rep.setAuthenticationFlows(new LinkedList<AuthenticationFlowRepresentation>());
-        rep.setAuthenticatorConfig(new LinkedList<AuthenticatorConfigRepresentation>());
+        rep.setAuthenticationFlows(new LinkedList<>());
+        rep.setAuthenticatorConfig(new LinkedList<>());
 
         List<AuthenticationFlowModel> authenticationFlows = new ArrayList<>(realm.getAuthenticationFlows());
         //ensure consistent ordering of authenticationFlows.
@@ -558,6 +629,7 @@ public class ModelToRepresentation {
         rep.setName(clientModel.getName());
         rep.setDescription(clientModel.getDescription());
         rep.setEnabled(clientModel.isEnabled());
+        rep.setAlwaysDisplayInConsole(clientModel.isAlwaysDisplayInConsole());
         rep.setAdminUrl(clientModel.getManagementUrl());
         rep.setPublicClient(clientModel.isPublicClient());
         rep.setFrontchannelLogout(clientModel.isFrontchannelLogout());
@@ -629,8 +701,7 @@ public class ModelToRepresentation {
         providerRep.setStoreToken(identityProviderModel.isStoreToken());
         providerRep.setTrustEmail(identityProviderModel.isTrustEmail());
         providerRep.setAuthenticateByDefault(identityProviderModel.isAuthenticateByDefault());
-        Map<String, String> config = new HashMap<>();
-        config.putAll(identityProviderModel.getConfig());
+        Map<String, String> config = new HashMap<>(identityProviderModel.getConfig());
         providerRep.setConfig(config);
         providerRep.setAddReadTokenRoleOnCreate(identityProviderModel.isAddReadTokenRoleOnCreate());
 
@@ -659,8 +730,7 @@ public class ModelToRepresentation {
         ProtocolMapperRepresentation rep = new ProtocolMapperRepresentation();
         rep.setId(model.getId());
         rep.setProtocol(model.getProtocol());
-        Map<String, String> config = new HashMap<String, String>();
-        config.putAll(model.getConfig());
+        Map<String, String> config = new HashMap<>(model.getConfig());
         rep.setConfig(config);
         rep.setName(model.getName());
         rep.setProtocolMapper(model.getProtocolMapper());
@@ -672,8 +742,7 @@ public class ModelToRepresentation {
         rep.setId(model.getId());
         rep.setIdentityProviderMapper(model.getIdentityProviderMapper());
         rep.setIdentityProviderAlias(model.getIdentityProviderAlias());
-        Map<String, String> config = new HashMap<String, String>();
-        config.putAll(model.getConfig());
+        Map<String, String> config = new HashMap<>(model.getConfig());
         rep.setConfig(config);
         rep.setName(model.getName());
         return rep;
@@ -707,7 +776,7 @@ public class ModelToRepresentation {
         rep.setProviderId(model.getProviderId());
         rep.setAlias(model.getAlias());
         rep.setDescription(model.getDescription());
-        rep.setAuthenticationExecutions(new LinkedList<AuthenticationExecutionExportRepresentation>());
+        rep.setAuthenticationExecutions(new LinkedList<>());
         for (AuthenticationExecutionModel execution : realm.getAuthenticationExecutions(model.getId())) {
             rep.getAuthenticationExecutions().add(toRepresentation(realm, execution));
         }
@@ -822,6 +891,10 @@ public class ModelToRepresentation {
     }
 
     public static <R extends AbstractPolicyRepresentation> R toRepresentation(Policy policy, AuthorizationProvider authorization, boolean genericRepresentation, boolean export) {
+        return toRepresentation(policy, authorization, genericRepresentation, export, false);
+    }
+    
+    public static <R extends AbstractPolicyRepresentation> R toRepresentation(Policy policy, AuthorizationProvider authorization, boolean genericRepresentation, boolean export, boolean allFields) {
         PolicyProviderFactory providerFactory = authorization.getProviderFactory(policy.getType());
         R representation;
 
@@ -845,6 +918,13 @@ public class ModelToRepresentation {
         representation.setType(policy.getType());
         representation.setDecisionStrategy(policy.getDecisionStrategy());
         representation.setLogic(policy.getLogic());
+        
+        if (allFields) {
+            representation.setResourcesData(policy.getResources().stream().map(
+                    resource -> toRepresentation(resource, resource.getResourceServer(), authorization, true)).collect(Collectors.toSet()));
+            representation.setScopesData(policy.getScopes().stream().map(
+                    resource -> toRepresentation(resource)).collect(Collectors.toSet()));
+        }
 
         return representation;
     }

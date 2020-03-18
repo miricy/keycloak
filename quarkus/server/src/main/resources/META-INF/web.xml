@@ -42,19 +42,11 @@
        <param-name>resteasy.disable.html.sanitizer</param-name>
        <param-value>true</param-value>
     </context-param>
-    <context-param>
-       <param-name>keycloak.embedded</param-name>
-       <param-value>true</param-value>
-    </context-param>
 
     <listener>
         <listener-class>
             org.jboss.resteasy.plugins.server.servlet.ResteasyBootstrap
         </listener-class>
-    </listener>
-
-    <listener>
-        <listener-class>org.keycloak.services.listeners.KeycloakSessionDestroyListener</listener-class>
     </listener>
 
     <filter>
@@ -67,10 +59,4 @@
         <filter-name>Keycloak Session Management</filter-name>
         <url-pattern>/*</url-pattern>
     </filter-mapping>
-
-    <resource-env-ref>
-        <resource-env-ref-name>infinispan/Keycloak</resource-env-ref-name>
-        <resource-env-ref-type>org.infinispan.manager.EmbeddedCacheManager</resource-env-ref-type>
-        <lookup-name>java:jboss/infinispan/container/keycloak</lookup-name>
-    </resource-env-ref>
 </web-app>

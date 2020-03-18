@@ -66,6 +66,7 @@ import org.keycloak.representations.idm.ManagementPermissionReference;
 import org.keycloak.representations.idm.PartialImportRepresentation;
 import org.keycloak.representations.idm.RealmEventsConfigRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.TestLdapConnectionRepresentation;
 import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.LDAPConnectionTestManager;
@@ -105,6 +106,7 @@ import java.util.stream.Collectors;
 
 import static org.keycloak.models.utils.StripSecretsUtils.stripForExport;
 import static org.keycloak.util.JsonSerialization.readValue;
+import org.keycloak.utils.ReservedCharValidator;
 
 /**
  * Base resource class for the admin REST api of one realm
@@ -388,6 +390,8 @@ public class RealmAdminResource {
         if (Config.getAdminRealm().equals(realm.getName()) && (rep.getRealm() != null && !rep.getRealm().equals(Config.getAdminRealm()))) {
             return ErrorResponse.error("Can't rename master realm", Status.BAD_REQUEST);
         }
+        
+        ReservedCharValidator.validate(rep.getRealm());
 
         try {
             if (!Constants.GENERATE.equals(rep.getPublicKey()) && (rep.getPrivateKey() != null && rep.getPublicKey() != null)) {
@@ -600,18 +604,19 @@ public class RealmAdminResource {
     public List<Map<String, String>> getClientSessionStats() {
         auth.realm().requireViewRealm();
 
-        Map<String, Map<String, String>> data = new HashMap();
+        Map<String, Map<String, String>> data = new HashMap<>();
         {
-            Map<String, Long> activeCount =session.sessions().getActiveClientSessionStats(realm, false);
+            Map<String, Long> activeCount = session.sessions().getActiveClientSessionStats(realm, false);
             for (Map.Entry<String, Long> entry : activeCount.entrySet()) {
                 Map<String, String> map = new HashMap<>();
                 ClientModel client = realm.getClientById(entry.getKey());
+                if (client == null)
+                    continue;
                 map.put("id", client.getId());
                 map.put("clientId", client.getClientId());
                 map.put("active", entry.getValue().toString());
                 map.put("offline", "0");
                 data.put(client.getId(), map);
-
             }
         }
         {
@@ -621,6 +626,8 @@ public class RealmAdminResource {
                 if (map == null) {
                     map = new HashMap<>();
                     ClientModel client = realm.getClientById(entry.getKey());
+                    if (client == null)
+                        continue;
                     map.put("id", client.getId());
                     map.put("clientId", client.getClientId());
                     map.put("active", "0");
@@ -630,7 +637,8 @@ public class RealmAdminResource {
             }
         }
         List<Map<String, String>> result = new LinkedList<>();
-        for (Map<String, String> item : data.values()) result.add(item);
+        for (Map<String, String> item : data.values())
+            result.add(item);
         return result;
     }
 
@@ -922,6 +930,8 @@ public class RealmAdminResource {
     @Path("testLDAPConnection")
     @POST
     @NoCache
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Deprecated
     public Response testLDAPConnection(@FormParam("action") String action, @FormParam("connectionUrl") String connectionUrl,
                                        @FormParam("bindDn") String bindDn, @FormParam("bindCredential") String bindCredential,
                                        @FormParam("useTruststoreSpi") String useTruststoreSpi, @FormParam("connectionTimeout") String connectionTimeout,
@@ -937,19 +947,48 @@ public class RealmAdminResource {
     }
 
     /**
+     * Test LDAP connection
+     * @return
+     */
+    @Path("testLDAPConnection")
+    @POST
+    @NoCache
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response testLDAPConnection(TestLdapConnectionRepresentation config) {
+        return testLDAPConnection(
+                config.getAction(),
+                config.getConnectionUrl(),
+                config.getBindDn(),
+                config.getBindCredential(),
+                config.getUseTruststoreSpi(),
+                config.getConnectionTimeout(),
+                config.getComponentId(),
+                config.getStartTls());
+    }
+
+    /**
      * Test SMTP connection with current logged in user
      *
      * @param config SMTP server configuration
      * @return
      * @throws Exception
      */
-    @Path("testSMTPConnection/{config}")
+    @Path("testSMTPConnection")
     @POST
     @NoCache
-    public Response testSMTPConnection(final @PathParam("config") String config) throws Exception {
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Deprecated
+    public Response testSMTPConnection(final @FormParam("config") String config) throws Exception {
         Map<String, String> settings = readValue(config, new TypeReference<Map<String, String>>() {
         });
+        return testSMTPConnection(settings);
+    }
 
+    @Path("testSMTPConnection")
+    @POST
+    @NoCache
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response testSMTPConnection(Map<String, String> settings) throws Exception {
         try {
             UserModel user = auth.adminAuth().getUser();
             if (user.getEmail() == null) {

@@ -17,6 +17,7 @@
 package org.keycloak.services.managers;
 
 import org.keycloak.Config;
+import org.keycloak.common.Profile;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.migration.MigrationModelManager;
 import org.keycloak.models.AccountRoles;
@@ -40,6 +41,7 @@ import org.keycloak.models.utils.DefaultRequiredActions;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.ProtocolMapperUtils;
+import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolFactory;
 import org.keycloak.protocol.oidc.mappers.AudienceResolveProtocolMapper;
@@ -57,6 +59,7 @@ import org.keycloak.services.clientregistration.policy.DefaultClientRegistration
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import org.keycloak.utils.ReservedCharValidator;
 
 /**
  * Per request object
@@ -96,6 +99,7 @@ public class RealmManager {
 
     public RealmModel createRealm(String id, String name) {
         if (id == null) id = KeycloakModelUtils.generateId();
+        ReservedCharValidator.validate(name);
         RealmModel realm = model.createRealm(id, name);
         realm.setName(name);
 
@@ -165,9 +169,12 @@ public class RealmManager {
         adminConsole.setWebOrigins(Collections.singleton("+"));
 
         adminConsole.setEnabled(true);
+        adminConsole.setAlwaysDisplayInConsole(false);
         adminConsole.setPublicClient(true);
         adminConsole.setFullScopeAllowed(false);
         adminConsole.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
+
+        adminConsole.setAttribute(OIDCConfigAttributes.PKCE_CODE_CHALLENGE_METHOD, "S256");
     }
 
     protected void setupAdminConsoleLocaleMapper(RealmModel realm) {
@@ -188,6 +195,7 @@ public class RealmManager {
             adminCli = KeycloakModelUtils.createClient(realm, Constants.ADMIN_CLI_CLIENT_ID);
             adminCli.setName("${client_" + Constants.ADMIN_CLI_CLIENT_ID + "}");
             adminCli.setEnabled(true);
+            adminCli.setAlwaysDisplayInConsole(false);
             adminCli.setPublicClient(true);
             adminCli.setFullScopeAllowed(false);
             adminCli.setStandardFlowEnabled(false);
@@ -407,6 +415,7 @@ public class RealmManager {
             accountClient = KeycloakModelUtils.createClient(realm, Constants.ACCOUNT_MANAGEMENT_CLIENT_ID);
             accountClient.setName("${client_" + Constants.ACCOUNT_MANAGEMENT_CLIENT_ID + "}");
             accountClient.setEnabled(true);
+            accountClient.setAlwaysDisplayInConsole(false);
             accountClient.setFullScopeAllowed(false);
 
             accountClient.setRootUrl(Constants.AUTH_BASE_URL_PROP);
@@ -425,12 +434,20 @@ public class RealmManager {
             manageAccountLinks.setDescription("${role_" + AccountRoles.MANAGE_ACCOUNT_LINKS + "}");
             RoleModel manageAccount = accountClient.getRole(AccountRoles.MANAGE_ACCOUNT);
             manageAccount.addCompositeRole(manageAccountLinks);
+            RoleModel viewAppRole = accountClient.addRole(AccountRoles.VIEW_APPLICATIONS);
+            viewAppRole.setDescription("${role_" + AccountRoles.VIEW_APPLICATIONS + "}");
+            RoleModel viewConsentRole = accountClient.addRole(AccountRoles.VIEW_CONSENT);
+            viewConsentRole.setDescription("${role_" + AccountRoles.VIEW_CONSENT + "}");
+            RoleModel manageConsentRole = accountClient.addRole(AccountRoles.MANAGE_CONSENT);
+            manageConsentRole.setDescription("${role_" + AccountRoles.MANAGE_CONSENT + "}");
+            manageConsentRole.addCompositeRole(viewConsentRole);
 
             ClientModel accountConsoleClient = realm.getClientByClientId(Constants.ACCOUNT_CONSOLE_CLIENT_ID);
             if (accountConsoleClient == null) {
                 accountConsoleClient = KeycloakModelUtils.createClient(realm, Constants.ACCOUNT_CONSOLE_CLIENT_ID);
                 accountConsoleClient.setName("${client_" + Constants.ACCOUNT_CONSOLE_CLIENT_ID + "}");
                 accountConsoleClient.setEnabled(true);
+                accountConsoleClient.setAlwaysDisplayInConsole(false);
                 accountConsoleClient.setFullScopeAllowed(false);
                 accountConsoleClient.setPublicClient(true);
                 accountConsoleClient.setDirectAccessGrantsEnabled(false);
@@ -449,6 +466,8 @@ public class RealmManager {
                 audienceMapper.setProtocolMapper(AudienceResolveProtocolMapper.PROVIDER_ID);
 
                 accountConsoleClient.addProtocolMapper(audienceMapper);
+
+                accountConsoleClient.setAttribute(OIDCConfigAttributes.PKCE_CODE_CHALLENGE_METHOD, "S256");
             }
         }
     }
@@ -462,6 +481,7 @@ public class RealmManager {
         if (client == null) {
             client = KeycloakModelUtils.createClient(realm, Constants.BROKER_SERVICE_CLIENT_ID);
             client.setEnabled(true);
+            client.setAlwaysDisplayInConsole(false);
             client.setName("${client_" + Constants.BROKER_SERVICE_CLIENT_ID + "}");
             client.setFullScopeAllowed(false);
             client.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
@@ -487,6 +507,7 @@ public class RealmManager {
             id = KeycloakModelUtils.generateId();
         }
         RealmModel realm = model.createRealm(id, rep.getRealm());
+        ReservedCharValidator.validate(rep.getRealm());
         realm.setName(rep.getRealm());
 
         // setup defaults
@@ -544,6 +565,9 @@ public class RealmManager {
 
                 if (Boolean.TRUE.equals(client.getAuthorizationServicesEnabled())) {
                     RepresentationToModel.createResourceServer(clientModel, session, true);
+                    if(!skipUserDependent) {
+                        RepresentationToModel.importAuthorizationSettings(client, clientModel, session);
+                    }
                 }
             }
         }

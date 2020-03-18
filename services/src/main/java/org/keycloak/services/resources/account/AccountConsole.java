@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.ws.rs.core.UriInfo;
+import org.keycloak.services.resources.RealmsResource;
 
 /**
  * Created by st on 29/03/17.
@@ -84,17 +86,12 @@ public class AccountConsole {
         } else {
             Map<String, Object> map = new HashMap<>();
 
-            URI baseUri = session.getContext().getUri().getBaseUri();
-
-            String authServerBaseUrl = baseUri.toString();
-            if (authServerBaseUrl.endsWith("/")) {
-                authServerBaseUrl = authServerBaseUrl.substring(0, authServerBaseUrl.length() - 1);
-            }
-
-            map.put("authUrl", authServerBaseUrl);
-            map.put("baseUrl", session.getContext().getUri(UrlType.FRONTEND).getBaseUriBuilder().replacePath("/realms/" + realm.getName() + "/account").build().toString());
+            UriInfo uriInfo = session.getContext().getUri(UrlType.FRONTEND);
+            URI authUrl = uriInfo.getBaseUri();
+            map.put("authUrl", authUrl.toString());
+            map.put("baseUrl", uriInfo.getBaseUriBuilder().path(RealmsResource.class).path(realm.getName()).path(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID).build(realm).toString());
             map.put("realm", realm);
-            map.put("resourceUrl", Urls.themeRoot(baseUri).getPath() + "/account/" + theme.getName());
+            map.put("resourceUrl", Urls.themeRoot(authUrl).getPath() + "/" + Constants.ACCOUNT_MANAGEMENT_CLIENT_ID + "/" + theme.getName());
             map.put("resourceVersion", Version.RESOURCES_VERSION);
             
             String[] referrer = getReferrer();
@@ -117,6 +114,12 @@ public class AccountConsole {
             EventStoreProvider eventStore = session.getProvider(EventStoreProvider.class);
             map.put("isEventsEnabled", eventStore != null && realm.isEventsEnabled());
             map.put("isAuthorizationEnabled", true);
+            
+            boolean isTotpConfigured = false;
+            if (user != null) {
+                isTotpConfigured = session.userCredentialManager().isConfiguredFor(realm, user, realm.getOTPPolicy().getType());
+            }
+            map.put("isTotpConfigured", isTotpConfigured);
 
             FreeMarkerUtil freeMarkerUtil = new FreeMarkerUtil();
             String result = freeMarkerUtil.processTemplate(map, "index.ftl", theme);

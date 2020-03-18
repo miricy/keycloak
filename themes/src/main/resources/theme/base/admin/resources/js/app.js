@@ -58,7 +58,7 @@ angular.element(document).ready(function () {
         location.reload();
     }
 
-    keycloakAuth.init({ onLoad: 'login-required' }).success(function () {
+    keycloakAuth.init({ onLoad: 'login-required', pkceMethod: 'S256' }).success(function () {
         auth.authz = keycloakAuth;
 
         if (auth.authz.idTokenParsed.locale) {
@@ -507,9 +507,6 @@ module.config([ '$routeProvider', function($routeProvider) {
                 realm : function(RealmLoader) {
                     return RealmLoader();
                 },
-                clients : function(ClientListLoader) {
-                    return ClientListLoader();
-                },
                 roles : function(RoleListLoader) {
                     return RoleListLoader();
                 }
@@ -820,9 +817,6 @@ module.config([ '$routeProvider', function($routeProvider) {
             resolve : {
                 realm : function(RealmLoader) {
                     return RealmLoader();
-                },
-                roles : function(RoleListLoader) {
-                    return RoleListLoader();
                 }
             },
             controller : 'RoleListCtrl'
@@ -1358,9 +1352,6 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 client : function(ClientLoader) {
                     return ClientLoader();
-                },
-                roles : function(ClientRoleListLoader) {
-                    return ClientRoleListLoader();
                 }
             },
             controller : 'ClientRoleListCtrl'
@@ -2002,8 +1993,8 @@ module.config([ '$routeProvider', function($routeProvider) {
                 realm : function(RealmLoader) {
                     return RealmLoader();
                 },
-                serverInfo : function(ServerInfo) {
-                    return ServerInfo.delay;
+                serverInfo : function(ServerInfoLoader) {
+                    return ServerInfoLoader();
                 }
             },
             controller : 'RealmOtpPolicyCtrl'
@@ -2014,11 +2005,23 @@ module.config([ '$routeProvider', function($routeProvider) {
                 realm : function(RealmLoader) {
                     return RealmLoader();
                 },
-                serverInfo : function(ServerInfo) {
-                    return ServerInfo.delay;
+                serverInfo : function(ServerInfoLoader) {
+                    return ServerInfoLoader();
                 }
             },
             controller : 'RealmWebAuthnPolicyCtrl'
+        })
+        .when('/realms/:realm/authentication/webauthn-policy-passwordless', {
+            templateUrl : resourceUrl + '/partials/webauthn-policy-passwordless.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                serverInfo : function(ServerInfoLoader) {
+                    return ServerInfoLoader();
+                }
+            },
+            controller : 'RealmWebAuthnPasswordlessPolicyCtrl'
         })
         .when('/realms/:realm/authentication/flows/:flow/config/:provider/:config', {
             templateUrl : resourceUrl + '/partials/authenticator-config.html',
@@ -2381,6 +2384,23 @@ module.directive('kcEnter', function() {
     };
 });
 
+// Don't allow URI reserved characters
+module.directive('kcNoReservedChars', function (Notifications, $translate) {
+    return function($scope, element) {
+        element.bind("keydown keypress", function(event) {
+            var keyPressed = String.fromCharCode(event.which || event.keyCode || 0);
+            
+            // ] and ' can not be used inside a character set on POSIX and GNU
+            if (keyPressed.match('[:/?#[@!$&()*+,;=]') || keyPressed === ']' || keyPressed === '\'') {
+                event.preventDefault();
+                $scope.$apply(function() {
+                    Notifications.warn($translate.instant('key-not-allowed-here', {character: keyPressed}));
+                });
+            }
+        });
+    };
+});
+
 module.directive('kcSave', function ($compile, $timeout, Notifications) {
     var clickDelay = 500; // 500 ms
 
@@ -2692,7 +2712,7 @@ module.controller('RoleSelectorModalCtrl', function($scope, realm, config, confi
     }
 
     $scope.selectClientRole = function() {
-        config[configName] = $scope.client.selected.clientId + "." + $scope.selectedClientRole.role.name;
+        config[configName] = $scope.selectedClient.clientId + "." + $scope.selectedClientRole.role.name;
         $modalInstance.close();
     }
 
@@ -2700,9 +2720,18 @@ module.controller('RoleSelectorModalCtrl', function($scope, realm, config, confi
         $modalInstance.dismiss();
     }
 
-    $scope.changeClient = function() {
-        if ($scope.client.selected) {
-            ClientRole.query({realm: realm.realm, client: $scope.client.selected.id}, function (data) {
+    clientSelectControl($scope, realm.realm, Client);
+    
+    $scope.selectedClient = null;
+
+    $scope.changeClient = function(client) {
+        $scope.selectedClient = client;
+        if (!client || !client.id) {
+            $scope.selectedClient = null;
+            return;
+        }
+        if ($scope.selectedClient) {
+            ClientRole.query({realm: realm.realm, client: $scope.selectedClient.id}, function (data) {
                 $scope.clientRoles = data;
              });
         } else {
@@ -2710,26 +2739,38 @@ module.controller('RoleSelectorModalCtrl', function($scope, realm, config, confi
             $scope.clientRoles = null;
         }
 
+        $scope.selectedClient = client;
     }
+
     RealmRoles.query({realm: realm.realm}, function(data) {
         $scope.realmRoles = data;
     })
-    Client.query({realm: realm.realm}, function(data) {
-        $scope.clients = data;
-        if (data.length > 0) {
-            $scope.client.selected = data[0];
-            $scope.changeClient();
-        }
-    })
 });
 
-module.controller('ProviderConfigCtrl', function ($modal, $scope, ComponentUtils) {
+module.controller('ProviderConfigCtrl', function ($modal, $scope, $route, ComponentUtils, Client) {
+    clientSelectControl($scope, $route.current.params.realm, Client);
     $scope.fileNames = {};
+    $scope.newMapEntries = {};
+    var cachedMaps = {};
+    var cachedParsedMaps = {};
+    var focusMapValueId = null;
 
     // KEYCLOAK-4463
     $scope.initEditor = function(editor){
         editor.$blockScrolling = Infinity; // suppress warning message
     };
+
+    $scope.initSelectedClient = function(configName, config) {
+        if(config[configName]) {
+            $scope.selectedClient = null;
+            Client.query({realm: $route.current.params.realm, search: false, clientId: config[configName], max: 1}, function(data) {
+                if(data.length > 0) {
+                    $scope.selectedClient = angular.copy(data[0]);
+                    $scope.selectedClient.text = $scope.selectedClient.clientId;
+                }
+            });
+        }   
+    }
 
     $scope.openRoleSelector = function (configName, config) {
         $modal.open({
@@ -2748,6 +2789,16 @@ module.controller('ProviderConfigCtrl', function ($modal, $scope, ComponentUtils
             }
         })
     }
+
+    $scope.changeClient = function(configName, config, client) {
+        if (!client || !client.id) {
+            config[configName] = null;
+            $scope.selectedClient = null;
+            return;
+        }
+        $scope.selectedClient = client;
+        config[configName] = client.clientId;
+    };
 
     ComponentUtils.convertAllMultivaluedStringValuesToList($scope.properties, $scope.config);
 
@@ -2777,6 +2828,70 @@ module.controller('ProviderConfigCtrl', function ($modal, $scope, ComponentUtils
         };
         reader.readAsText($files[0]);
         $scope.fileNames[optionName] = $files[0].name;
+    }
+
+    $scope.addMapEntry = function(optionName) {
+        $scope.removeMapEntry(optionName, $scope.newMapEntries[optionName].key)
+
+        var parsedMap = JSON.parse($scope.config[optionName]);
+        parsedMap.push($scope.newMapEntries[optionName]);
+        $scope.config[optionName] = JSON.stringify(parsedMap);
+
+        delete $scope.newMapEntries[optionName];
+    }
+
+    $scope.removeMapEntry = function(optionName, key) {
+        var parsedMap = JSON.parse($scope.config[optionName]);
+
+        for(var i = parsedMap.length - 1; i >= 0; i--) {
+            if(parsedMap[i]['key'] === key) {
+                parsedMap.splice(i, 1);
+            }
+        }
+
+        $scope.config[optionName] = JSON.stringify(parsedMap);
+    }
+
+    $scope.updateMapEntry = function(optionName, key, value) {
+        var parsedMap = JSON.parse($scope.config[optionName]);
+
+        for(var i = parsedMap.length - 1; i >= 0; i--) {
+            if(parsedMap[i]['key'] === key) {
+                parsedMap[i]['value'] = value;
+            }
+        }
+        $scope.config[optionName] = JSON.stringify(parsedMap);
+
+        focusMapValueId = "mapValue-" + optionName + "-" + key;
+    }
+
+    $scope.jsonParseMap = function(optionName) {
+
+        if(cachedParsedMaps[optionName] === undefined) {
+            cachedMaps[optionName] = "[]";
+            cachedParsedMaps[optionName] = [];
+
+            if(!$scope.config.hasOwnProperty(optionName)){
+                $scope.config[optionName]=cachedMaps[optionName];
+            } else {
+                cachedMaps[optionName] = $scope.config[optionName];
+                cachedParsedMaps[optionName] = JSON.parse(cachedMaps[optionName]);
+            }
+        }
+
+        var mapChanged = $scope.config[optionName] !== cachedMaps[optionName];
+
+        if(mapChanged){
+            cachedMaps[optionName] = $scope.config[optionName];
+            cachedParsedMaps[optionName] = JSON.parse(cachedMaps[optionName]);
+        }
+
+        if(!mapChanged && focusMapValueId !== null){
+            document.getElementById(focusMapValueId).focus();
+            focusMapValueId = null;
+        }
+
+        return cachedParsedMaps[optionName];
     }
 });
 
@@ -2844,7 +2959,31 @@ module.controller('ComponentRoleSelectorModalCtrl', function($scope, realm, conf
     })
 });
 
-module.controller('ComponentConfigCtrl', function ($modal, $scope) {
+module.controller('ComponentConfigCtrl', function ($modal, $scope, $route, Client) {
+
+    $scope.initSelectedClient = function(configName, config) {
+        if(config[configName]) {
+            $scope.selectedClient = null;
+            Client.query({realm: $route.current.params.realm, search: false, clientId: config[configName], max: 1}, function(data) {
+                if(data.length > 0) {
+                    $scope.selectedClient = angular.copy(data[0]);
+                    $scope.selectedClient.text = $scope.selectedClient.clientId;
+                }
+            });
+        }   
+    }
+
+    $scope.changeClient = function(configName, config, client) {
+        if (!client || !client.id) {
+            config[configName] = null;
+            $scope.selectedClient = null;
+            return;
+        }
+        $scope.selectedClient = client;
+        config[configName] = client.clientId;
+    };
+
+
     $scope.openRoleSelector = function (configName, config) {
         $modal.open({
             templateUrl: resourceUrl + '/partials/modal/component-role-selector.html',
@@ -3152,6 +3291,21 @@ module.directive('kcValidPage', function() {
            }
        }
    }
+});
+
+// Directive to parse/format strings into numbers
+module.directive('stringToNumber', function() {
+    return {
+        require: 'ngModel',
+        link: function(scope, element, attrs, ngModel) {
+            ngModel.$parsers.push(function(value) {
+                return (typeof value === 'undefined' || value === null)? '' : '' + value;
+            });
+            ngModel.$formatters.push(function(value) {
+                return parseFloat(value);
+            });
+        }
+    };
 });
 
 // filter used for paged tables

@@ -16,8 +16,6 @@
  */
 package org.keycloak.testsuite.federation.storage;
 
-import org.jboss.arquillian.container.test.api.Deployment;
-import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,31 +36,26 @@ import org.keycloak.models.RoleModel;
 import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.AbstractAuthTest;
-import org.keycloak.testsuite.runonserver.RunOnServerDeployment;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 
+import javax.ws.rs.NotFoundException;
 import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
 
-import javax.ws.rs.NotFoundException;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class FederatedStorageExportImportTest extends AbstractAuthTest {
 
     private static final String REALM_NAME = "exported";
 
     private String exportFileAbsolutePath;
     private String exportDirAbsolutePath;
-
-
-    @Deployment
-    public static WebArchive deploy() {
-        return RunOnServerDeployment.create(ComponentExportImportTest.class, AbstractAuthTest.class, RealmResource.class)
-                .addPackages(true, "org.keycloak.testsuite");
-    }
 
     @Before
     public void setDirs() {

@@ -1,12 +1,7 @@
 package org.keycloak.testsuite.arquillian.containers;
 
-import org.jboss.arquillian.container.spi.event.ContainerMultiControlEvent;
-import org.jboss.arquillian.container.spi.event.StartClassContainers;
 import org.jboss.arquillian.container.spi.event.StartContainer;
-import org.jboss.arquillian.container.spi.event.StartSuiteContainers;
 import org.jboss.arquillian.container.spi.event.StopContainer;
-import org.jboss.arquillian.container.spi.event.StopManualContainers;
-import org.jboss.arquillian.container.spi.event.StopSuiteContainers;
 import org.jboss.arquillian.core.api.Event;
 import org.jboss.arquillian.core.api.Instance;
 import org.jboss.arquillian.core.api.annotation.Inject;
@@ -17,7 +12,6 @@ import org.jboss.arquillian.test.spi.event.suite.Before;
 import org.jboss.arquillian.test.spi.event.suite.BeforeClass;
 import org.keycloak.common.Profile;
 import org.keycloak.testsuite.ProfileAssume;
-import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.SuiteContext;
 import org.keycloak.testsuite.arquillian.TestContext;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
@@ -38,6 +32,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.getManagementClient;
+import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.isAuthServerRemote;
 
 /**
  * @author mhajas
@@ -77,11 +72,13 @@ public class KeycloakContainerFeaturesController {
         private Profile.Feature feature;
         private boolean skipRestart;
         private FeatureAction action;
+        private boolean onlyForProduct;
 
-        public UpdateFeature(Profile.Feature feature, boolean skipRestart, FeatureAction action) {
+        public UpdateFeature(Profile.Feature feature, boolean skipRestart, FeatureAction action, boolean onlyForProduct) {
             this.feature = feature;
             this.skipRestart = skipRestart;
             this.action = action;
+            this.onlyForProduct = onlyForProduct;
         }
 
         /**
@@ -112,11 +109,12 @@ public class KeycloakContainerFeaturesController {
     }
 
     public void restartAuthServer() throws Exception {
-        if (AuthServerTestEnricher.AUTH_SERVER_CONTAINER.equals("auth-server-remote")) {
-            OnlineManagementClient client = getManagementClient();
-            Administration administration = new Administration(client);
-            administration.reload();
-            client.close();
+        if (isAuthServerRemote()) {
+            try (OnlineManagementClient client = getManagementClient()) {
+                int timeoutInSec = Integer.getInteger(System.getProperty("auth.server.jboss.startup.timeout"), 300);
+                Administration administration = new Administration(client, timeoutInSec);
+                administration.reload();
+            }
         } else {
             stopContainerEvent.fire(new StopContainer(suiteContextInstance.get().getAuthServerInfo().getArquillianContainer()));
             startContainerEvent.fire(new StartContainer(suiteContextInstance.get().getAuthServerInfo().getArquillianContainer()));
@@ -124,6 +122,10 @@ public class KeycloakContainerFeaturesController {
     }
 
     private void updateFeatures(List<UpdateFeature> updateFeatures) throws Exception {
+        updateFeatures = updateFeatures.stream()
+                .filter(this::skipForProduct)
+                .collect(Collectors.toList());
+
         updateFeatures.forEach(UpdateFeature::performAction);
 
         if (updateFeatures.stream().anyMatch(updateFeature -> !updateFeature.skipRestart)) {
@@ -134,20 +136,25 @@ public class KeycloakContainerFeaturesController {
         updateFeatures.forEach(UpdateFeature::assertPerformed);
     }
 
+    // KEYCLOAK-12958 WebAuthn profile product/project
+    private boolean skipForProduct(UpdateFeature feature) {
+        return !feature.onlyForProduct || Profile.getName().equals("product");
+    }
+
     private void checkAnnotatedElementForFeatureAnnotations(AnnotatedElement annotatedElement, State state) throws Exception {
         List<UpdateFeature> updateFeatureList = new ArrayList<>(0);
 
         if (annotatedElement.isAnnotationPresent(EnableFeatures.class) || annotatedElement.isAnnotationPresent(EnableFeature.class)) {
             updateFeatureList.addAll(Arrays.stream(annotatedElement.getAnnotationsByType(EnableFeature.class))
                     .map(annotation -> new UpdateFeature(annotation.value(), annotation.skipRestart(),
-                            state == State.BEFORE ? FeatureAction.ENABLE : FeatureAction.DISABLE))
+                            state == State.BEFORE ? FeatureAction.ENABLE : FeatureAction.DISABLE, annotation.onlyForProduct()))
                     .collect(Collectors.toList()));
         }
 
         if (annotatedElement.isAnnotationPresent(DisableFeatures.class) || annotatedElement.isAnnotationPresent(DisableFeature.class)) {
             updateFeatureList.addAll(Arrays.stream(annotatedElement.getAnnotationsByType(DisableFeature.class))
                     .map(annotation -> new UpdateFeature(annotation.value(), annotation.skipRestart(),
-                            state == State.BEFORE ? FeatureAction.DISABLE : FeatureAction.ENABLE))
+                            state == State.BEFORE ? FeatureAction.DISABLE : FeatureAction.ENABLE, annotation.onlyForProduct()))
                     .collect(Collectors.toList()));
         }
 

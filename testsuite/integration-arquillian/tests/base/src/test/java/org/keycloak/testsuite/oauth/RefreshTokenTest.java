@@ -16,11 +16,11 @@
  */
 package org.keycloak.testsuite.oauth;
 
-import org.jboss.arquillian.container.test.api.Deployment;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.jboss.arquillian.graphene.page.Page;
-import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
@@ -41,12 +41,11 @@ import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.representations.idm.EventRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
-import org.keycloak.testsuite.AbstractAuthTest;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.pages.LoginPage;
-import org.keycloak.testsuite.runonserver.RunOnServerDeployment;
 import org.keycloak.testsuite.util.ClientManager;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
@@ -64,8 +63,8 @@ import javax.ws.rs.core.Form;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
-
 import java.net.URI;
+import java.security.Security;
 import java.util.List;
 
 import static org.hamcrest.Matchers.allOf;
@@ -77,21 +76,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
 import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsername;
+import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
 import static org.keycloak.testsuite.util.OAuthClient.AUTH_SERVER_ROOT;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public class RefreshTokenTest extends AbstractKeycloakTest {
-
-    @Deployment
-    public static WebArchive deploy() {
-        return RunOnServerDeployment.create(RefreshTokenTest.class, AbstractAuthTest.class, RealmResource.class)
-                .addPackages(true, "org.keycloak.testsuite");
-    }
-
 
     @Page
     protected LoginPage loginPage;
@@ -102,6 +96,11 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
     @Override
     public void beforeAbstractKeycloakTest() throws Exception {
         super.beforeAbstractKeycloakTest();
+    }
+
+    @BeforeClass
+    public static void addBouncyCastleProvider() {
+        if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
     }
 
     @Before
@@ -151,8 +150,6 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
             response.close();
         }
         events.clear();
-
-
     }
 
     @Test
@@ -161,6 +158,35 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
         assertEquals(400, response.getStatusCode());
         assertEquals("invalid_grant", response.getError());
         events.clear();
+    }
+
+    @Test
+    public void refreshTokenStructure() {
+
+        oauth.nonce("123456");
+        oauth.doLogin("test-user@localhost", "password");
+
+        EventRepresentation loginEvent = events.expectLogin().assertEvent();
+
+        String sessionId = loginEvent.getSessionId();
+        String codeId = loginEvent.getDetails().get(Details.CODE_ID);
+
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        OAuthClient.AccessTokenResponse tokenResponse = oauth.doAccessTokenRequest(code, "password");
+        AccessToken token = oauth.verifyToken(tokenResponse.getAccessToken());
+        assertEquals("123456", token.getNonce());
+
+        String refreshTokenString = tokenResponse.getRefreshToken();
+        RefreshToken refreshToken = oauth.parseRefreshToken(refreshTokenString);
+
+        events.expectCodeToToken(codeId, sessionId).assertEvent();
+
+        assertNotNull(refreshTokenString);
+
+        assertEquals("123456", refreshToken.getNonce());
+        assertNull("RealmAccess should be null for RefreshTokens", refreshToken.getRealmAccess());
+        assertTrue("ResourceAccess should be null for RefreshTokens", refreshToken.getResourceAccess().isEmpty());
     }
 
     @Test
@@ -223,10 +249,10 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
         assertEquals(findUserByUsername(adminClient.realm("test"), "test-user@localhost").getId(), refreshedToken.getSubject());
         Assert.assertNotEquals("test-user@localhost", refreshedToken.getSubject());
 
-        Assert.assertTrue(refreshedToken.getRealmAccess().isUserInRole("user"));
+        assertTrue(refreshedToken.getRealmAccess().isUserInRole("user"));
 
         assertEquals(1, refreshedToken.getResourceAccess(oauth.getClientId()).getRoles().size());
-        Assert.assertTrue(refreshedToken.getResourceAccess(oauth.getClientId()).isUserInRole("customer-user"));
+        assertTrue(refreshedToken.getResourceAccess(oauth.getClientId()).isUserInRole("customer-user"));
 
         EventRepresentation refreshEvent = events.expectRefresh(tokenEvent.getDetails().get(Details.REFRESH_TOKEN_ID), sessionId).assertEvent();
         Assert.assertNotEquals(tokenEvent.getDetails().get(Details.TOKEN_ID), refreshEvent.getDetails().get(Details.TOKEN_ID));
@@ -638,6 +664,7 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServerContainerExclude.AuthServer.REMOTE)
     public void refreshTokenAfterUserAdminLogoutEndpointAndLoginAgain() {
         try {
             String refreshToken1 = loginAndForceNewLoginPage();

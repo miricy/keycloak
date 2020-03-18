@@ -25,6 +25,7 @@ import org.keycloak.representations.idm.UserSessionRepresentation;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -45,13 +46,13 @@ import java.util.Map;
 public interface UserResource {
 
     @GET
-    public UserRepresentation toRepresentation();
+    UserRepresentation toRepresentation();
 
     @PUT
-    public void update(UserRepresentation userRepresentation);
+    void update(UserRepresentation userRepresentation);
 
     @DELETE
-    public void remove();
+    void remove();
 
     @Path("groups")
     @GET
@@ -67,6 +68,19 @@ public interface UserResource {
     List<GroupRepresentation> groups(@QueryParam("search") String search,
                                      @QueryParam("first") Integer firstResult,
                                      @QueryParam("max") Integer maxResults);
+    
+    @Path("groups")
+    @GET
+    List<GroupRepresentation> groups(@QueryParam("first") Integer firstResult,
+                                     @QueryParam("max") Integer maxResults,
+                                     @QueryParam("briefRepresentation") @DefaultValue("true") boolean briefRepresentation);
+    
+    @Path("groups")
+    @GET
+    List<GroupRepresentation> groups(@QueryParam("search") String search,
+                                     @QueryParam("first") Integer firstResult,
+                                     @QueryParam("max") Integer maxResults,
+                                     @QueryParam("briefRepresentation") @DefaultValue("true") boolean briefRepresentation);
 
     @Path("groups/{groupId}")
     @PUT
@@ -81,7 +95,7 @@ public interface UserResource {
 
     @POST
     @Path("logout")
-    public void logout();
+    void logout();
 
 
 
@@ -89,6 +103,18 @@ public interface UserResource {
     @Path("credentials")
     @Produces(MediaType.APPLICATION_JSON)
     List<CredentialRepresentation> credentials();
+
+
+    /**
+     * Return credential types, which are provided by the user storage where user is stored. Returned values can contain for example "password", "otp" etc.
+     * This will always return empty list for "local" users, which are not backed by any user storage
+     *
+     * @return
+     */
+    @GET
+    @Path("configured-user-storage-credential-types")
+    @Produces(MediaType.APPLICATION_JSON)
+    List<String> getConfiguredUserStorageCredentialTypes();
 
     /**
      * Remove a credential for a user
@@ -128,19 +154,19 @@ public interface UserResource {
      * Disables or deletes all credentials for specific types.
      * Type examples "otp", "password"
      *
-     * This endpoint is deprecated as it is not supported to disable credentials, just delete them
+     * This is typically supported just for the users backed by user storage providers. See {@link UserRepresentation#getDisableableCredentialTypes()}
+     * to see what credential types can be disabled for the particular user
      *
      * @param credentialTypes
      */
     @Path("disable-credential-types")
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
-    @Deprecated
-    public void disableCredentialType(List<String> credentialTypes);
+    void disableCredentialType(List<String> credentialTypes);
 
     @PUT
     @Path("reset-password")
-    public void resetPassword(CredentialRepresentation credentialRepresentation);
+    void resetPassword(CredentialRepresentation credentialRepresentation);
 
     /**
      * Use executeActionsEmail and pass in the UPDATE_PASSWORD required action
@@ -149,7 +175,7 @@ public interface UserResource {
     @PUT
     @Path("reset-password-email")
     @Deprecated
-    public void resetPasswordEmail();
+    void resetPasswordEmail();
 
     /**
      * Use executeActionsEmail and pass in the UPDATE_PASSWORD required action
@@ -158,7 +184,7 @@ public interface UserResource {
     @PUT
     @Path("reset-password-email")
     @Deprecated
-    public void resetPasswordEmail(@QueryParam("client_id") String clientId);
+    void resetPasswordEmail(@QueryParam("client_id") String clientId);
 
     /**
      * Sends an email to the user with a link within it.  If they click on the link they will be asked to perform some actions
@@ -169,7 +195,44 @@ public interface UserResource {
      */
     @PUT
     @Path("execute-actions-email")
-    public void executeActionsEmail(List<String> actions);
+    void executeActionsEmail(List<String> actions);
+
+    /**
+     * Sends an email to the user with a link within it.  If they click on the link they will be asked to perform some actions
+     * i.e. reset password, update profile, etc.
+     *
+     * The lifespan decides the number of seconds after which the generated token in the email link expires. The default
+     * value is 12 hours.
+     *
+     * @param actions
+     * @param lifespan
+     */
+    @PUT
+    @Path("execute-actions-email")
+    void executeActionsEmail(List<String> actions, @QueryParam("lifespan") Integer lifespan);
+
+    /**
+     * Sends an email to the user with a link within it.  If they click on the link they will be asked to perform some actions
+     * i.e. reset password, update profile, etc.
+     *
+     * If redirectUri is not null, then you must specify a client id.  This will set the URI you want the flow to link
+     * to after the email link is clicked and actions completed.  If both parameters are null, then no page is linked to
+     * at the end of the flow.
+     *
+     * The lifespan decides the number of seconds after which the generated token in the email link expires. The default
+     * value is 12 hours.
+     *
+     * @param clientId
+     * @param redirectUri
+     * @param lifespan
+     * @param actions
+     */
+    @PUT
+    @Path("execute-actions-email")
+    void executeActionsEmail(@QueryParam("client_id") String clientId,
+                             @QueryParam("redirect_uri") String redirectUri,
+                             @QueryParam("lifespan") Integer lifespan,
+                             List<String> actions);
 
     /**
      * Sends an email to the user with a link within it.  If they click on the link they will be asked to perform some actions
@@ -185,19 +248,19 @@ public interface UserResource {
      */
     @PUT
     @Path("execute-actions-email")
-    public void executeActionsEmail(@QueryParam("client_id") String clientId, @QueryParam("redirect_uri") String redirectUri, List<String> actions);
+    void executeActionsEmail(@QueryParam("client_id") String clientId, @QueryParam("redirect_uri") String redirectUri, List<String> actions);
 
     @PUT
     @Path("send-verify-email")
-    public void sendVerifyEmail();
+    void sendVerifyEmail();
 
     @PUT
     @Path("send-verify-email")
-    public void sendVerifyEmail(@QueryParam("client_id") String clientId);
+    void sendVerifyEmail(@QueryParam("client_id") String clientId);
 
     @GET
     @Path("sessions")
-    public List<UserSessionRepresentation> getUserSessions();
+    List<UserSessionRepresentation> getUserSessions();
 
     @GET
     @Path("offline-sessions/{clientId}")
@@ -205,27 +268,27 @@ public interface UserResource {
 
     @GET
     @Path("federated-identity")
-    public List<FederatedIdentityRepresentation> getFederatedIdentity();
+    List<FederatedIdentityRepresentation> getFederatedIdentity();
 
     @POST
     @Path("federated-identity/{provider}")
-    public Response addFederatedIdentity(@PathParam("provider") String provider, FederatedIdentityRepresentation rep);
+    Response addFederatedIdentity(@PathParam("provider") String provider, FederatedIdentityRepresentation rep);
 
     @Path("federated-identity/{provider}")
     @DELETE
-    public void removeFederatedIdentity(final @PathParam("provider") String provider);
+    void removeFederatedIdentity(final @PathParam("provider") String provider);
 
     @Path("role-mappings")
-    public RoleMappingResource roles();
+    RoleMappingResource roles();
 
 
     @GET
     @Path("consents")
-    public List<Map<String, Object>> getConsents();
+    List<Map<String, Object>> getConsents();
 
     @DELETE
     @Path("consents/{client}")
-    public void revokeConsent(@PathParam("client") String clientId);
+    void revokeConsent(@PathParam("client") String clientId);
 
     @POST
     @Path("impersonation")

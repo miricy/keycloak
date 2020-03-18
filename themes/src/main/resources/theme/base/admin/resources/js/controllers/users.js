@@ -1,4 +1,4 @@
-module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, clients, client, Notifications, RealmRoleMapping,
+module.controller('UserRoleMappingCtrl', function($scope, $http, $route, realm, user, client, Client, Notifications, RealmRoleMapping,
                                                   ClientRoleMapping, AvailableRealmRoleMapping, AvailableClientRoleMapping,
                                                   CompositeRealmRoleMapping, CompositeClientRoleMapping) {
     $scope.realm = realm;
@@ -6,7 +6,6 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
     $scope.selectedRealmRoles = [];
     $scope.selectedRealmMappings = [];
     $scope.realmMappings = [];
-    $scope.clients = clients;
     $scope.client = client;
     $scope.clientRoles = [];
     $scope.clientComposite = [];
@@ -14,6 +13,8 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
     $scope.selectedClientMappings = [];
     $scope.clientMappings = [];
     $scope.dummymodel = [];
+    $scope.selectedClient = null;
+    
 
     $scope.realmMappings = RealmRoleMapping.query({realm : realm.realm, userId : user.id});
     $scope.realmRoles = AvailableRealmRoleMapping.query({realm : realm.realm, userId : user.id});
@@ -29,11 +30,11 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
                 $scope.realmComposite = CompositeRealmRoleMapping.query({realm : realm.realm, userId : user.id});
                 $scope.selectedRealmMappings = [];
                 $scope.selectRealmRoles = [];
-                if ($scope.targetClient) {
+                if ($scope.selectedClient) {
                     console.log('load available');
-                    $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                    $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                    $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
+                    $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                    $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                    $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
                     $scope.selectedClientRoles = [];
                     $scope.selectedClientMappings = [];
                 }
@@ -51,11 +52,11 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
                 $scope.realmComposite = CompositeRealmRoleMapping.query({realm : realm.realm, userId : user.id});
                 $scope.selectedRealmMappings = [];
                 $scope.selectRealmRoles = [];
-                if ($scope.targetClient) {
+                if ($scope.selectedClient) {
                     console.log('load available');
-                    $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                    $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                    $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
+                    $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                    $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                    $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
                     $scope.selectedClientRoles = [];
                     $scope.selectedClientMappings = [];
                 }
@@ -65,11 +66,11 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
 
     $scope.addClientRole = function() {
         $scope.clientRolesToAdd = JSON.parse('[' + $scope.selectedClientRoles + ']');
-        $http.post(authUrl + '/admin/realms/' + realm.realm + '/users/' + user.id + '/role-mappings/clients/' + $scope.targetClient.id,
+        $http.post(authUrl + '/admin/realms/' + realm.realm + '/users/' + user.id + '/role-mappings/clients/' + $scope.selectedClient.id,
                 $scope.clientRolesToAdd).then(function() {
-                $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
+                $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
                 $scope.selectedClientRoles = [];
                 $scope.selectedClientMappings = [];
                 $scope.realmComposite = CompositeRealmRoleMapping.query({realm : realm.realm, userId : user.id});
@@ -80,11 +81,11 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
 
     $scope.deleteClientRole = function() {
         $scope.clientRolesToRemove = JSON.parse('[' + $scope.selectedClientMappings + ']');
-        $http.delete(authUrl + '/admin/realms/' + realm.realm + '/users/' + user.id + '/role-mappings/clients/' + $scope.targetClient.id,
+        $http.delete(authUrl + '/admin/realms/' + realm.realm + '/users/' + user.id + '/role-mappings/clients/' + $scope.selectedClient.id,
             {data : $scope.clientRolesToRemove, headers : {"content-type" : "application/json"}}).then(function() {
-                $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-                $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
+                $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+                $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
                 $scope.selectedClientRoles = [];
                 $scope.selectedClientMappings = [];
                 $scope.realmComposite = CompositeRealmRoleMapping.query({realm : realm.realm, userId : user.id});
@@ -93,14 +94,19 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
             });
     };
 
-
-    $scope.changeClient = function() {
-        console.log('changeClient');
-        if ($scope.targetClient) {
+    $scope.changeClient = function(client) {
+        console.log("selected client: ", client);
+        if (!client || !client.id) {
+            $scope.selectedClient = null;
+            return;
+        } else {
+            $scope.selectedClient = client;
+        }
+        if ($scope.selectedClient) {
             console.log('load available');
-            $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-            $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
-            $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.targetClient.id});
+            $scope.clientComposite = CompositeClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+            $scope.clientRoles = AvailableClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
+            $scope.clientMappings = ClientRoleMapping.query({realm : realm.realm, userId : user.id, client : $scope.selectedClient.id});
         } else {
             $scope.clientRoles = null;
             $scope.clientMappings = null;
@@ -110,8 +116,7 @@ module.controller('UserRoleMappingCtrl', function($scope, $http, realm, user, cl
         $scope.selectedClientMappings = [];
     };
 
-
-
+    clientSelectControl($scope, $route.current.params.realm, Client);
 });
 
 module.controller('UserSessionsCtrl', function($scope, realm, user, sessions, UserSessions, UserLogout, UserSessionLogout, Notifications) {
@@ -326,6 +331,46 @@ module.controller('UserTabCtrl', function($scope, $location, Dialog, Notificatio
     };
 });
 
+function loadUserStorageLink(realm, user, console, Components, UserStorageOperations, $scope, $location) {
+        if(user.federationLink) {
+            console.log("federationLink is not null. It is " + user.federationLink);
+
+            if ($scope.access.viewRealm) {
+                Components.get({realm: realm.realm, componentId: user.federationLink}, function (link) {
+                    $scope.federationLinkName = link.name;
+                    $scope.federationLink = "#/realms/" + realm.realm + "/user-storage/providers/" + link.providerId + "/" + link.id;
+                });
+            } else {
+                // KEYCLOAK-4328
+                UserStorageOperations.simpleName.get({realm: realm.realm, componentId: user.federationLink}, function (link) {
+                    $scope.federationLinkName = link.name;
+                    $scope.federationLink = $location.absUrl();
+                })
+            }
+
+        } else {
+            console.log("federationLink is null");
+        }
+
+        if(user.origin) {
+            if ($scope.access.viewRealm) {
+                Components.get({realm: realm.realm, componentId: user.origin}, function (link) {
+                    $scope.originName = link.name;
+                    $scope.originLink = "#/realms/" + realm.realm + "/user-storage/providers/" + link.providerId + "/" + link.id;
+                })
+            }
+            else {
+                // KEYCLOAK-4328
+                UserStorageOperations.simpleName.get({realm: realm.realm, componentId: user.origin}, function (link) {
+                    $scope.originName = link.name;
+                    $scope.originLink = $location.absUrl();
+                })
+             }
+        } else {
+            console.log("origin is null");
+        }
+};
+
 module.controller('UserDetailCtrl', function($scope, realm, user, BruteForceUser, User,
                                              Components,
                                              UserImpersonation, RequiredActions,
@@ -334,6 +379,7 @@ module.controller('UserDetailCtrl', function($scope, realm, user, BruteForceUser
     $scope.realm = realm;
     $scope.create = !user.id;
     $scope.editUsername = $scope.create || $scope.realm.editUsernameAllowed;
+    $scope.emailAsUsername = $scope.realm.registrationEmailAsUsername;
 
     if ($scope.create) {
         $scope.user = { enabled: true, attributes: {} }
@@ -354,42 +400,9 @@ module.controller('UserDetailCtrl', function($scope, realm, user, BruteForceUser
                 }
             });
         };
-        if(user.federationLink) {
-            console.log("federationLink is not null. It is " + user.federationLink);
 
-            if ($scope.access.viewRealm) {
-                Components.get({realm: realm.realm, componentId: user.federationLink}, function (link) {
-                    $scope.federationLinkName = link.name;
-                    $scope.federationLink = "#/realms/" + realm.realm + "/user-storage/providers/" + link.providerId + "/" + link.id;
-                });
-            } else {
-                // KEYCLOAK-4328
-                UserStorageOperations.simpleName.get({realm: realm.realm, componentId: user.federationLink}, function (link) {
-                    $scope.federationLinkName = link.name;
-                    $scope.federationLink = $location.absUrl();
-                })
-            }
+        loadUserStorageLink(realm, user, console, Components, UserStorageOperations, $scope, $location);
 
-        } else {
-            console.log("federationLink is null");
-        }
-        if(user.origin) {
-            if ($scope.access.viewRealm) {
-                Components.get({realm: realm.realm, componentId: user.origin}, function (link) {
-                    $scope.originName = link.name;
-                    $scope.originLink = "#/realms/" + realm.realm + "/user-storage/providers/" + link.providerId + "/" + link.id;
-                })
-            }
-            else {
-                // KEYCLOAK-4328
-                UserStorageOperations.simpleName.get({realm: realm.realm, componentId: user.origin}, function (link) {
-                    $scope.originName = link.name;
-                    $scope.originLink = $location.absUrl();
-                })
-             }
-        } else {
-            console.log("origin is null");
-        }
         console.log('realm brute force? ' + realm.bruteForceProtected)
         $scope.temporarilyDisabled = false;
         var isDisabled = function () {
@@ -509,7 +522,8 @@ module.controller('UserDetailCtrl', function($scope, realm, user, BruteForceUser
     }
 });
 
-module.controller('UserCredentialsCtrl', function($scope, realm, user, $route, RequiredActions, User, UserExecuteActionsEmail, UserCredentials, Notifications, Dialog, TimeUnit2) {
+module.controller('UserCredentialsCtrl', function($scope, realm, user, $route, $location, RequiredActions, User, UserExecuteActionsEmail,
+                                                  UserCredentials, Notifications, Dialog, TimeUnit2, Components, UserStorageOperations) {
     console.log('UserCredentialsCtrl');
 
     $scope.hasPassword = false;
@@ -517,6 +531,16 @@ module.controller('UserCredentialsCtrl', function($scope, realm, user, $route, R
     $scope.showData = {};
 
     loadCredentials();
+
+    loadUserStorageLink(realm, user, console, Components, UserStorageOperations, $scope, $location);
+
+    $scope.getUserStorageProviderName = function() {
+        return user.federationLink ? $scope.federationLinkName : $scope.originName;
+    }
+
+    $scope.getUserStorageProviderLink = function() {
+        return user.federationLink ? $scope.federationLink : $scope.originLink;
+    }
 
     $scope.keys = function(object) {
         return object ? Object.keys(object) : [];
@@ -643,6 +667,14 @@ module.controller('UserCredentialsCtrl', function($scope, realm, user, $route, R
             Notifications.error("Error while loading user credentials. See console for more information.");
             console.log(err);
         });
+
+        UserCredentials.getConfiguredUserStorageCredentialTypes({ realm: realm.realm, userId: user.id }, null, function(userStorageCredentialTypes) {
+            $scope.userStorageCredentialTypes =  userStorageCredentialTypes;
+            $scope.hasPassword = $scope.hasPassword || userStorageCredentialTypes.lastIndexOf("password") > -1;
+        }, function(err) {
+            Notifications.error("Error while loading user storage credentials. See console for more information.");
+            console.log(err);
+        });
     }
 
     $scope.resetPassword = function() {
@@ -656,12 +688,13 @@ module.controller('UserCredentialsCtrl', function($scope, realm, user, $route, R
             }
         }
 
-        var msgTitle = 'Set password';
-        var msg = 'Are you sure you want to set a password for the user?';
-
+        var msgTitle = ($scope.hasPassword ? 'Reset' : 'Set') + ' password';
+        var msg = 'Are you sure you want to ' + ($scope.hasPassword ? 'reset' : 'set') + ' a password for the user?';
+        var msgSuccess = 'The password has been ' + ($scope.hasPassword ? 'reset.' : 'set.');
+        
         Dialog.confirm(msgTitle, msg, function() {
             UserCredentials.resetPassword({ realm: realm.realm, userId: user.id }, { type : "password", value : $scope.password, temporary: $scope.temporaryPassword }, function() {
-                Notifications.success("The password has been set");
+                Notifications.success(msgSuccess);
                 $scope.password = null;
                 $scope.confirmPassword = null;
                 $route.reload();
@@ -1628,20 +1661,19 @@ module.controller('LDAPUserStorageCtrl', function($scope, $location, Notificatio
     var initConnectionTest = function(testAction, ldapConfig) {
         return {
             action: testAction,
-            realm: $scope.realm.realm,
-            connectionUrl: ldapConfig.connectionUrl,
-            bindDn: ldapConfig.bindDn,
-            bindCredential: ldapConfig.bindCredential,
-            useTruststoreSpi: ldapConfig.useTruststoreSpi,
-            connectionTimeout: ldapConfig.connectionTimeout,
-            startTls: ldapConfig.startTls,
+            connectionUrl: ldapConfig.connectionUrl && ldapConfig.connectionUrl[0],
+            bindDn: ldapConfig.bindDn && ldapConfig.bindDn[0],
+            bindCredential: ldapConfig.bindCredential && ldapConfig.bindCredential[0],
+            useTruststoreSpi: ldapConfig.useTruststoreSpi && ldapConfig.useTruststoreSpi[0],
+            connectionTimeout: ldapConfig.connectionTimeout && ldapConfig.connectionTimeout[0],
+            startTls: ldapConfig.startTls && ldapConfig.startTls[0],
             componentId: instance.id
         };
     };
 
     $scope.testConnection = function() {
         console.log('LDAPCtrl: testConnection');
-        RealmLDAPConnectionTester.save(initConnectionTest("testConnection", $scope.instance.config), function() {
+        RealmLDAPConnectionTester.save({realm: realm.realm}, initConnectionTest("testConnection", $scope.instance.config), function() {
             Notifications.success("LDAP connection successful.");
         }, function() {
             Notifications.error("Error when trying to connect to LDAP. See server.log for details.");
@@ -1650,7 +1682,7 @@ module.controller('LDAPUserStorageCtrl', function($scope, $location, Notificatio
 
     $scope.testAuthentication = function() {
         console.log('LDAPCtrl: testAuthentication');
-        RealmLDAPConnectionTester.save(initConnectionTest("testAuthentication", $scope.instance.config), function() {
+        RealmLDAPConnectionTester.save({realm: realm.realm}, initConnectionTest("testAuthentication", $scope.instance.config), function() {
             Notifications.success("LDAP authentication successful.");
         }, function() {
             Notifications.error("LDAP authentication failed. See server.log for details");
