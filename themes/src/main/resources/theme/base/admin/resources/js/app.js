@@ -2387,7 +2387,7 @@ module.directive('kcEnter', function() {
 // Don't allow URI reserved characters
 module.directive('kcNoReservedChars', function (Notifications, $translate) {
     return function($scope, element) {
-        element.bind("keydown keypress", function(event) {
+        element.bind("keypress", function(event) {
             var keyPressed = String.fromCharCode(event.which || event.keyCode || 0);
             
             // ] and ' can not be used inside a character set on POSIX and GNU
@@ -2790,14 +2790,18 @@ module.controller('ProviderConfigCtrl', function ($modal, $scope, $route, Compon
         })
     }
 
-    $scope.changeClient = function(configName, config, client) {
+    $scope.changeClient = function(configName, config, client, multivalued) {
         if (!client || !client.id) {
             config[configName] = null;
             $scope.selectedClient = null;
             return;
         }
         $scope.selectedClient = client;
-        config[configName] = client.clientId;
+        if (multivalued) {
+            config[configName][0] = client.clientId;
+        } else {
+            config[configName] = client.clientId;
+        }
     };
 
     ComponentUtils.convertAllMultivaluedStringValuesToList($scope.properties, $scope.config);

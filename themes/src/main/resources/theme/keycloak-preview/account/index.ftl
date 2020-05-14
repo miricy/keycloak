@@ -26,10 +26,22 @@
             var resourceUrl = '${resourceUrl}';
             var isReactLoading = false;
 
+            <#if properties.logo?has_content>
+            var brandImg = resourceUrl + '${properties.logo}';
+            <#else>
+            var brandImg = resourceUrl + '/public/logo.svg';
+            </#if>
+
+            <#if properties.logoUrl?has_content>
+            var brandUrl = '${properties.logoUrl}';
+            <#else>
+            var brandUrl = baseUrl;
+            </#if>
+
             var features = {
                 isRegistrationEmailAsUsername : ${realm.registrationEmailAsUsername?c},
                 isEditUserNameAllowed : ${realm.editUsernameAllowed?c},
-                isInternationalizationEnabled : false,
+                isInternationalizationEnabled : ${realm.isInternationalizationEnabled()?c},
                 isLinkedAccountsEnabled : ${realm.identityFederationEnabled?c},
                 isEventsEnabled : ${isEventsEnabled?c},
                 isMyResourcesEnabled : ${(realm.userManagedAccessAllowed && isAuthorizationEnabled)?c},
@@ -44,7 +56,7 @@
             <#if referrer??>
                 var referrer = '${referrer}';
                 var referrerName = '${referrerName}';
-                var referrerUri = '${referrer_uri}';
+                var referrerUri = '${referrer_uri?no_esc}';
             </#if>
 
             <#if msg??>
@@ -56,7 +68,11 @@
             </#if>
         </script>
 
+        <#if properties.favIcon?has_content>
+        <link rel="icon" href="${resourceUrl}${properties.favIcon}" type="image/x-icon"/>
+        <#else>
         <link rel="icon" href="${resourceUrl}/public/favicon.ico" type="image/x-icon"/>
+        </#if>
 
         <script src="${authUrl}js/keycloak.js"></script>
 
@@ -109,6 +125,7 @@
                 } else {
                     document.getElementById("landingSignOutButton").style.display='inline';
                     document.getElementById("landingSignOutLink").style.display='inline';
+                    document.getElementById("landingLoggedInUser").innerHTML = loggedInUserName('${msg("unknownUser")}', '${msg("fullName")}');
                 }
 
                 loadjs("/node_modules/systemjs/dist/system.src.js", function() {
@@ -127,7 +144,11 @@
 
 <div id="spinner_screen" style="display:block; height:100%">
     <div style="width: 320px; height: 328px; text-align: center; position: absolute; top:0;	bottom: 0; left: 0;	right: 0; margin: auto;">
+                <#if properties.logo?has_content>
+                <img src="${resourceUrl}${properties.logo}" alt="Logo" class="brand">
+                <#else>
                 <img src="${resourceUrl}/public/logo.svg" alt="Logo" class="brand">
+                </#if>
                 <p>${msg("loadingMessage")}</p>
                 <div >
                     <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="margin: auto; background: rgb(255, 255, 255); display: block; shape-rendering: auto;" width="200px" height="200px" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid">
@@ -144,8 +165,16 @@
     <div class="pf-c-page" id="page-layout-default-nav">
       <header role="banner" class="pf-c-page__header">
         <div class="pf-c-page__header-brand">
-          <a class="pf-c-page__header-brand-link">
+          <#if properties.logoUrl?has_content>
+          <a id="landingLogo" class="pf-c-page__header-brand-link" href="${properties.logoUrl}">
+          <#else>
+          <a id="landingLogo" class="pf-c-page__header-brand-link" href="${baseUrl}">
+          </#if>
+            <#if properties.logo?has_content>
+            <img class="pf-c-brand brand" src="${resourceUrl}${properties.logo}" alt="Logo">
+            <#else>
             <img class="pf-c-brand brand" src="${resourceUrl}/public/logo.svg" alt="Logo">
+            </#if>
           </a>
         </div>
         <div class="pf-c-page__header-tools">
@@ -156,8 +185,12 @@
             </#if>
 
             <div class="pf-c-page__header-tools-group pf-m-icons">
-              <button id="landingSignInButton" tabindex="0" style="display:none" onclick="keycloak.login();" class="pf-c-button pf-m-primary" type="button">${msg("doLogIn")}</button>
+              <button id="landingSignInButton" tabindex="0" style="display:none" onclick="keycloak.login();" class="pf-c-button pf-m-primary" type="button">${msg("doSignIn")}</button>
               <button id="landingSignOutButton" tabindex="0" style="display:none" onclick="keycloak.logout();" class="pf-c-button pf-m-primary" type="button">${msg("doSignOut")}</button>
+            </div>
+
+            <div class="pf-l-toolbar__group" style="margin-left: 10px;">
+                <span id="landingLoggedInUser"></span>
             </div>
 
             <!-- Kebab for mobile -->
@@ -229,7 +262,7 @@
                 </div>
               </div>
             </div>
-            <div class="pf-l-gallery__item" style="display:none" id="landingMyResourcesCard">
+            <div class="pf-l-gallery__item" id="landingMyResourcesCard" style="display:none">
               <div class="pf-c-card">
                 <div class="pf-c-card__header pf-c-content">
                     <h2><i class="pf-icon pf-icon-repository"></i>&nbsp${msg("myResources")}</h2>
@@ -252,9 +285,9 @@
             };
 
             // Hidden until feature is complete.
-            //if (features.isMyResourcesEnabled) {
-            //    document.getElementById("landingMyResourcesCard").style.display='block';
-            //};
+            if (features.isMyResourcesEnabled) {
+                document.getElementById("landingMyResourcesCard").style.display='block';
+            };
         </script>
 
     </body>

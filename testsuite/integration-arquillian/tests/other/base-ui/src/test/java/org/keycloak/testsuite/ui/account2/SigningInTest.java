@@ -181,8 +181,7 @@ public class SigningInTest extends BaseAccountPageTest {
         passwordCred.clickUpdateBtn();
         updatePasswordPage.assertCurrent();
         updatePasswordPage.updatePasswords(newPwd, newPwd);
-        // TODO uncomment this once KEYCLOAK-12852 is resolved
-        // signingInPage.assertCurrent();
+        signingInPage.assertCurrent();
 
         assertUserCredential(PASSWORD_LABEL, false, passwordCred);
         assertNotEquals(previousCreatedAt, passwordCred.getCreatedAt());
@@ -206,8 +205,7 @@ public class SigningInTest extends BaseAccountPageTest {
             updatePasswordPage.assertCurrent();
             String originalPassword = Users.getPasswordOf(testUser);
             updatePasswordPage.updatePasswords(originalPassword, originalPassword);
-            // TODO uncomment this once KEYCLOAK-12852 is resolved
-            // signingInPage.assertCurrent();
+             signingInPage.assertCurrent();
 
             // Credential set-up now
             assertFalse(passwordCredentialType.isSetUpLinkVisible());
@@ -219,11 +217,12 @@ public class SigningInTest extends BaseAccountPageTest {
 
     @Test
     public void otpTest() {
+        testContext.setTestRealmReps(emptyList());
+
         assertFalse(otpCredentialType.isSetUp());
         otpCredentialType.clickSetUpLink();
         otpSetupPage.cancel();
-        // TODO uncomment this once KEYCLOAK-12852 is resolved
-        // signingInPage.assertCurrent();
+         signingInPage.assertCurrent();
         assertFalse(otpCredentialType.isSetUp());
 
         assertEquals("Authenticator Application", otpCredentialType.getTitle());
@@ -240,6 +239,18 @@ public class SigningInTest extends BaseAccountPageTest {
         assertEquals(2, otpCredentialType.getUserCredentialsCount());
         assertUserCredential(label2, true, otp2);
 
+        assertTrue("Set up link is not visible", otpCredentialType.isSetUpLinkVisible());
+        RequiredActionProviderRepresentation requiredAction = new RequiredActionProviderRepresentation();
+        requiredAction.setEnabled(false);
+        testRealmResource().flows().updateRequiredAction(CONFIGURE_TOTP.name(), requiredAction);
+
+        refreshPageAndWaitForLoad();
+
+        assertFalse("Set up link for \"otp\" is visible", otpCredentialType.isSetUpLinkVisible());
+        assertFalse("Not set up link for \"otp\" is visible", otpCredentialType.isNotSetUpLabelVisible());
+        assertTrue("Title for \"otp\" is not visible", otpCredentialType.isTitleVisible());
+        assertEquals(2, otpCredentialType.getUserCredentialsCount());
+
         testRemoveCredential(otp1);
     }
 
@@ -254,23 +265,29 @@ public class SigningInTest extends BaseAccountPageTest {
     }
 
     private void testWebAuthn(boolean passwordless) {
+        testContext.setTestRealmReps(emptyList());
+
         WebAuthnAssume.assumeChrome(driver); // we need some special flags to be able to register security key
 
         SigningInPage.CredentialType credentialType;
         final String expectedHelpText;
+        final String providerId;
 
         if (passwordless) {
             credentialType = webAuthnPwdlessCredentialType;
             expectedHelpText = "Use your security key for passwordless log in.";
+            providerId = WebAuthnPasswordlessRegisterFactory.PROVIDER_ID;
         }
         else {
             credentialType = webAuthnCredentialType;
             expectedHelpText = "Use your security key to log in.";
+            providerId = WebAuthnRegisterFactory.PROVIDER_ID;
         }
 
         assertFalse(credentialType.isSetUp());
         // no way to simulate registration cancellation
 
+        assertTrue("Set up link for \"" + credentialType.getType() + "\" is not visible", credentialType.isSetUpLinkVisible());
         assertEquals("Security Key", credentialType.getTitle());
         assertEquals(expectedHelpText, credentialType.getHelpText());
 
@@ -286,6 +303,17 @@ public class SigningInTest extends BaseAccountPageTest {
         assertEquals(2, credentialType.getUserCredentialsCount());
         assertUserCredential(label2, true, webAuthn2);
 
+        RequiredActionProviderRepresentation requiredAction = new RequiredActionProviderRepresentation();
+        requiredAction.setEnabled(false);
+        testRealmResource().flows().updateRequiredAction(providerId, requiredAction);
+
+        refreshPageAndWaitForLoad();
+
+        assertFalse("Set up link for \"" + credentialType.getType() + "\" is visible", credentialType.isSetUpLinkVisible());
+        assertFalse("Not set up link for \"" + credentialType.getType() + "\" is visible", credentialType.isNotSetUpLabelVisible());
+        assertTrue("Title for \"" + credentialType.getType() + "\" is not visible", credentialType.isTitleVisible());
+        assertEquals(2, credentialType.getUserCredentialsCount());
+
         testRemoveCredential(webAuthn1);
     }
 
@@ -297,17 +325,17 @@ public class SigningInTest extends BaseAccountPageTest {
     }
 
     private void testSetUpLink(SigningInPage.CredentialType credentialType, String requiredActionProviderId) {
-        assertTrue("Set up link is visible", credentialType.isSetUpLinkVisible());
+        assertTrue("Set up link for \"" + credentialType.getType() + "\" is not visible", credentialType.isSetUpLinkVisible());
 
         RequiredActionProviderRepresentation requiredAction = new RequiredActionProviderRepresentation();
         requiredAction.setEnabled(false);
         testRealmResource().flows().updateRequiredAction(requiredActionProviderId, requiredAction);
 
         refreshPageAndWaitForLoad();
-        assertFalse("Set up link is not visible", credentialType.isSetUpLinkVisible());
 
-        assertFalse("Credential type is not set up", credentialType.isSetUp()); // this also check the cred type is present
-        assertNotNull("Title is present", credentialType.getTitle());
+        assertFalse("Set up link for \"" + credentialType.getType() + "\" is visible", credentialType.isSetUpLinkVisible());
+        assertFalse("Title for \"" + credentialType.getType() + "\" is visible", credentialType.isTitleVisible());
+        assertFalse("Set up link for \"" + credentialType.getType() + "\" is visible", credentialType.isNotSetUpLabelVisible());
     }
 
     private SigningInPage.UserCredential addOtpCredential(String label) {
@@ -320,8 +348,7 @@ public class SigningInTest extends BaseAccountPageTest {
         otpSetupPage.setTotp(code);
         otpSetupPage.setUserLabel(label);
         otpSetupPage.submit();
-        // TODO uncomment this once KEYCLOAK-12852 is resolved
-        // signingInPage.assertCurrent();
+        signingInPage.assertCurrent();
 
         return getNewestUserCredential(otpCredentialType);
     }
@@ -333,8 +360,7 @@ public class SigningInTest extends BaseAccountPageTest {
         webAuthnRegisterPage.confirmAIA();
         webAuthnRegisterPage.registerWebAuthnCredential(label);
         waitForPageToLoad();
-        // TODO uncomment this once KEYCLOAK-12852 is resolved
-        // signingInPage.assertCurrent();
+        signingInPage.assertCurrent();
 
         return getNewestUserCredential(credentialType);
     }

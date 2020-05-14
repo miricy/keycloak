@@ -85,8 +85,6 @@ interface SigningInPageState {
  * @author Stan Silvert ssilvert@redhat.com (C) 2018 Red Hat Inc.
  */
 class SigningInPage extends React.Component<SigningInPageProps, SigningInPageState> {
-    private readonly updatePassword: AIACommand = new AIACommand('UPDATE_PASSWORD', this.props.location.pathname);
-    private readonly setUpTOTP: AIACommand = new AIACommand('CONFIGURE_TOTP', this.props.location.pathname);
 
     public constructor(props: SigningInPageProps) {
         super(props);
@@ -207,7 +205,7 @@ class SigningInPage extends React.Component<SigningInPageProps, SigningInPageSta
 
         let updateAIA: AIACommand;
         if (credContainer.updateAction) {
-            updateAIA = new AIACommand(credContainer.updateAction, this.props.location.pathname);
+            updateAIA = new AIACommand(credContainer.updateAction);
         }
 
         return (
@@ -244,7 +242,7 @@ class SigningInPage extends React.Component<SigningInPageProps, SigningInPageSta
 
         let setupAction: AIACommand;
         if (credContainer.createAction) {
-            setupAction = new AIACommand(credContainer.createAction, this.props.location.pathname);
+            setupAction = new AIACommand(credContainer.createAction);
         }
         const credContainerDisplayName: string = Msg.localize(credContainer.displayName);
 
@@ -258,7 +256,9 @@ class SigningInPage extends React.Component<SigningInPageProps, SigningInPageSta
                                     <Title headingLevel={TitleLevel.h3} size='2xl'>
                                         <strong id={`${credContainer.type}-cred-title`}><Msg msgKey={credContainer.displayName}/></strong>
                                     </Title>
-                                    <span id={`${credContainer.type}-cred-help`}><Msg msgKey={credContainer.helptext}/></span>
+                                    <span id={`${credContainer.type}-cred-help`}>
+                                        {credContainer.helptext && <Msg msgKey={credContainer.helptext}/>}
+                                    </span>
                                 </DataListCell>,
 
                             ]}/>

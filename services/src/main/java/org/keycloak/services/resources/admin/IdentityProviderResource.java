@@ -130,6 +130,7 @@ public class IdentityProviderResource {
         }
 
         String alias = this.identityProviderModel.getAlias();
+        session.users().preRemove(realm, identityProviderModel);
         this.realm.removeIdentityProviderByAlias(alias);
 
         Set<IdentityProviderMapperModel> mappers = this.realm.getIdentityProviderMappersByAlias(alias);
@@ -165,7 +166,13 @@ public class IdentityProviderResource {
 
             return Response.noContent().build();
         } catch (IllegalArgumentException e) {
-            return ErrorResponse.error("Invalid request", BAD_REQUEST);
+            String message = e.getMessage();
+
+            if (message == null) {
+                message = "Invalid request";
+            }
+
+            return ErrorResponse.error(message, BAD_REQUEST);
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Identity Provider " + providerRep.getAlias() + " already exists");
         }

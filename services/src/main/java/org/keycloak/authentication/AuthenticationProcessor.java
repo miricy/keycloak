@@ -56,6 +56,7 @@ import org.keycloak.services.util.AuthenticationFlowURLHelper;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.CommonClientSessionModel;
 
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
@@ -508,7 +509,8 @@ public class AuthenticationProcessor {
                     .setUser(getUser())
                     .setActionUri(action)
                     .setExecution(getExecution().getId())
-                    .setFormData(request.getDecodedFormParameters())
+                    .setFormData(request.getHttpMethod().equalsIgnoreCase("post") ? request.getDecodedFormParameters() :
+                            new MultivaluedHashMap<>())
                     .setClientSessionCode(accessCode);
             if (getForwardedErrorMessage() != null) {
                 provider.addError(getForwardedErrorMessage());
@@ -639,15 +641,9 @@ public class AuthenticationProcessor {
 
     public void logFailure() {
         if (realm.isBruteForceProtected()) {
-            String username = authenticationSession.getAuthNote(AbstractUsernameFormAuthenticator.ATTEMPTED_USERNAME);
-            // todo need to handle non form failures
-            if (username == null) {
-
-            } else {
-                UserModel user = KeycloakModelUtils.findUserByNameOrEmail(session, realm, username);
-                if (user != null) {
-                    getBruteForceProtector().failedLogin(realm, user, connection);
-                }
+            UserModel user = AuthenticationManager.lookupUserForBruteForceLog(session, realm, authenticationSession);
+            if (user != null) {
+                getBruteForceProtector().failedLogin(realm, user, connection);
             }
         }
     }

@@ -27,6 +27,7 @@ import org.keycloak.authentication.requiredactions.WebAuthnPasswordlessRegisterF
 import org.keycloak.authentication.requiredactions.WebAuthnRegisterFactory;
 import org.keycloak.broker.provider.util.SimpleHttp;
 import org.keycloak.common.Profile;
+import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.credential.CredentialTypeMetadata;
 import org.keycloak.events.EventType;
 import org.keycloak.models.AuthenticationExecutionModel;
@@ -173,7 +174,7 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
             user.setAttributes(originalAttributes);
             SimpleHttp.Response response = SimpleHttp.doPost(getAccountUrl(null), httpClient).auth(tokenUtil.getToken()).json(user).asResponse();
             System.out.println(response.asString());
-            assertEquals(200, response.getStatus());
+            assertEquals(204, response.getStatus());
         }
 
     }
@@ -197,13 +198,13 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
         } finally {
             user.setFirstName(originalFirstname);
             int status = SimpleHttp.doPost(getAccountUrl(null), httpClient).auth(tokenUtil.getToken()).json(user).asStatus();
-            assertEquals(200, status);
+            assertEquals(204, status);
         }
     }
 
     private UserRepresentation updateAndGet(UserRepresentation user) throws IOException {
         int status = SimpleHttp.doPost(getAccountUrl(null), httpClient).auth(tokenUtil.getToken()).json(user).asStatus();
-        assertEquals(200, status);
+        assertEquals(204, status);
         return SimpleHttp.doGet(getAccountUrl(null), httpClient).auth(tokenUtil.getToken()).asJson(UserRepresentation.class);
     }
 
@@ -269,7 +270,7 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
         events.poll();
 
         //Change the password
-        updatePassword("password", "Str0ng3rP4ssw0rd", 200);
+        updatePassword("password", "Str0ng3rP4ssw0rd", 204);
 
         //Get the new value for lastUpdate
         AccountCredentialResource.PasswordDetails updatedDetails = getPasswordDetails();
@@ -284,17 +285,17 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
         assertEquals(updatedDetails.getLastUpdate(), finalDetails.getLastUpdate());
 
         //Change the password back
-        updatePassword("Str0ng3rP4ssw0rd", "password", 200);
+        updatePassword("Str0ng3rP4ssw0rd", "password", 204);
    }
 
     @Test
     public void testPasswordConfirmation() throws IOException {
         updatePassword("password", "Str0ng3rP4ssw0rd", "confirmationDoesNotMatch", 400);
 
-        updatePassword("password", "Str0ng3rP4ssw0rd", "Str0ng3rP4ssw0rd", 200);
+        updatePassword("password", "Str0ng3rP4ssw0rd", "Str0ng3rP4ssw0rd", 204);
 
         //Change the password back
-        updatePassword("Str0ng3rP4ssw0rd", "password", 200);
+        updatePassword("Str0ng3rP4ssw0rd", "password", 204);
     }
 
     private AccountCredentialResource.PasswordDetails getPasswordDetails() throws IOException {
@@ -392,6 +393,40 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
         password = credentials.get(0);
         Assert.assertEquals(PasswordCredentialModel.TYPE, password.getType());
         Assert.assertNull(password.getUserCredentials());
+    }
+
+
+    @Test
+    public void testCRUDCredentialOfDifferentUser() throws IOException {
+        // Get credential ID of the OTP credential of the different user thant currently logged user
+        UserResource user = ApiUtil.findUserByUsernameId(testRealm(), "user-with-one-configured-otp");
+        CredentialRepresentation otpCredential = user.credentials().stream()
+                .filter(credentialRep -> OTPCredentialModel.TYPE.equals(credentialRep.getType()))
+                .findFirst()
+                .get();
+
+        // Test that current user can't update the credential, which belongs to the different user
+        SimpleHttp.Response response = SimpleHttp
+                .doPut(getAccountUrl("credentials/" + otpCredential.getId() + "/label"), httpClient)
+                .auth(tokenUtil.getToken())
+                .json("new-label")
+                .asResponse();
+        assertEquals(404, response.getStatus());
+
+        // Test that current user can't delete the credential, which belongs to the different user
+        response = SimpleHttp
+                .doDelete(getAccountUrl("credentials/" + otpCredential.getId()), httpClient)
+                .acceptJson()
+                .auth(tokenUtil.getToken())
+                .asResponse();
+        assertEquals(404, response.getStatus());
+
+        // Assert credential was not updated or removed
+        CredentialRepresentation otpCredentialLoaded = user.credentials().stream()
+                .filter(credentialRep -> OTPCredentialModel.TYPE.equals(credentialRep.getType()))
+                .findFirst()
+                .get();
+        Assert.assertTrue(ObjectUtil.isEqualOrBothNull(otpCredential.getUserLabel(), otpCredentialLoaded.getUserLabel()));
     }
 
     // Send REST request to get all credential containers and credentials of current user
@@ -1055,14 +1090,14 @@ public class AccountRestServiceTest extends AbstractRestServiceTest {
                 .header("Accept", "application/json")
                 .auth(token.getToken())
                 .asResponse();
-        assertEquals(202, response.getStatus());
+        assertEquals(204, response.getStatus());
 
         response = SimpleHttp
                 .doDelete(getAccountUrl("applications/" + appId + "/consent"), httpClient)
                 .header("Accept", "application/json")
                 .auth(token.getToken())
                 .asResponse();
-        assertEquals(202, response.getStatus());
+        assertEquals(204, response.getStatus());
     }
 
     @Test
