@@ -73,7 +73,7 @@ public class QQIdentityProvider extends AbstractOAuth2IdentityProvider implement
                         		.header("Authorization", "Bearer " + accessToken).asString();
                         String json = qqcallback.substring(qqcallback.indexOf("{"), qqcallback.indexOf("}")+1);
                         ObjectMapper mapper = new ObjectMapper();
-            			Map<String, Object> map = new HashMap<String, Object>();
+            			Map<String, String> map = new HashMap<String, String>();
             			// convert JSON string to Map
             			map = mapper.readValue(json, new TypeReference<Map<String, String>>(){});
             			String openid = map.get("openid").toString();
