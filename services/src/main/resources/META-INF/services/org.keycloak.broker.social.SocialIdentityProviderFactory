@@ -27,4 +27,9 @@ org.keycloak.social.openshift.OpenshiftV3IdentityProviderFactory
 org.keycloak.social.openshift.OpenshiftV4IdentityProviderFactory
 org.keycloak.social.gitlab.GitLabIdentityProviderFactory
 org.keycloak.social.bitbucket.BitbucketIdentityProviderFactory
+org.keycloak.social.baidu.BaiduIdentityProviderFactory
+org.keycloak.social.wechat.WechatIdentityProviderFactory
+org.keycloak.social.wechatmp.WechatmpIdentityProviderFactory
+org.keycloak.social.qq.QQIdentityProviderFactory
 org.keycloak.social.instagram.InstagramIdentityProviderFactory
+
