@@ -31,7 +31,6 @@ import org.keycloak.models.utils.RoleUtils;
 import org.keycloak.storage.ReadOnlyException;
 
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +40,7 @@ import java.util.stream.Stream;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class InMemoryUserAdapter extends UserModelDefaultMethods {
+public class InMemoryUserAdapter extends UserModelDefaultMethods.Streams {
     private Long createdTimestamp = Time.currentTimeMillis();
     private boolean emailVerified;
     private boolean enabled;
@@ -152,12 +151,9 @@ public class InMemoryUserAdapter extends UserModelDefaultMethods {
     }
 
     @Override
-    public List<String> getAttribute(String name) {
-        List<String> value = attributes.get(name);
-        if (value == null) {
-            return new LinkedList<>();
-        }
-        return value;
+    public Stream<String> getAttributeStream(String name) {
+        List<String> value = this.attributes.get(name);
+        return value != null ? value.stream() : Stream.empty();
     }
 
     @Override
@@ -166,8 +162,8 @@ public class InMemoryUserAdapter extends UserModelDefaultMethods {
     }
 
     @Override
-    public Set<String> getRequiredActions() {
-        return requiredActions;
+    public Stream<String> getRequiredActionsStream() {
+        return this.requiredActions.stream();
     }
 
     @Override

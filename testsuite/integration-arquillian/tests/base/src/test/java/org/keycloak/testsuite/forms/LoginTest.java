@@ -23,6 +23,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.common.Profile;
 import org.keycloak.common.util.Retry;
 import org.keycloak.crypto.Algorithm;
 import org.keycloak.events.Details;
@@ -41,6 +42,7 @@ import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.console.page.AdminConsole;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.AppPage;
@@ -49,6 +51,7 @@ import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
+import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ContainerAssume;
 import org.keycloak.testsuite.util.DroneUtils;
 import org.keycloak.testsuite.util.JavascriptBrowser;
@@ -58,11 +61,9 @@ import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.TokenSignatureUtil;
 import org.keycloak.testsuite.util.UserBuilder;
 import org.keycloak.testsuite.util.WaitUtils;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
 
 import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.util.Arrays;
@@ -160,7 +161,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
 
     @Test
     public void testBrowserSecurityHeaders() {
-        Client client = ClientBuilder.newClient();
+        Client client = AdminClientUtil.createResteasyClient();
         Response response = client.target(oauth.getLoginFormUrl()).request().get();
         Assert.assertThat(response.getStatus(), is(equalTo(200)));
         for (BrowserSecurityHeaders header : BrowserSecurityHeaders.values()) {
@@ -189,7 +190,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         adminClient.realm("test").update(realmRep);
 
         try {
-            Client client = ClientBuilder.newClient();
+            Client client = AdminClientUtil.createResteasyClient();
             Response response = client.target(oauth.getLoginFormUrl()).request().get();
             String headerValue = response.getHeaderString(cspReportOnlyHeader);
             Assert.assertThat(headerValue, is(equalTo(expectedCspReportOnlyValue)));
@@ -204,7 +205,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     //KEYCLOAK-5556
     @Test
     public void testPOSTAuthenticationRequest() {
-        Client client = ClientBuilder.newClient();
+        Client client = AdminClientUtil.createResteasyClient();
 
         //POST request to http://localhost:8180/auth/realms/test/protocol/openid-connect/auth;
         UriBuilder b = OIDCLoginProtocolService.authUrl(UriBuilder.fromUri(AUTH_SERVER_ROOT));
@@ -357,6 +358,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginDifferentUserAfterDisabledUserThrownOut() {
         String userId = adminClient.realm("test").users().search("test-user@localhost").get(0).getId();
         try {
@@ -869,6 +871,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredIdle() throws Exception {
         setRememberMe(true, 1, null);
 
@@ -898,6 +901,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredMaxLifespan() throws Exception {
         setRememberMe(true, null, 1);
 
