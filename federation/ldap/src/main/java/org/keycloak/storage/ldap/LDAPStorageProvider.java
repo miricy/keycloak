@@ -18,7 +18,6 @@
 package org.keycloak.storage.ldap;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -88,7 +87,7 @@ import org.keycloak.storage.user.UserRegistrationProvider;
  */
 public class LDAPStorageProvider implements UserStorageProvider,
         CredentialInputValidator,
-        CredentialInputUpdater,
+        CredentialInputUpdater.Streams,
         CredentialAuthentication,
         UserLookupProvider,
         UserRegistrationProvider,
@@ -354,7 +353,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(String search, RealmModel realm, int firstResult, int maxResults) {
+    public Stream<UserModel> searchForUserStream(String search, RealmModel realm, Integer firstResult, Integer maxResults) {
         Map<String, String> attributes = new HashMap<String, String>();
         attributes.put(UserModel.SEARCH,search);
         return searchForUserStream(attributes, realm, firstResult, maxResults);
@@ -366,7 +365,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(Map<String, String> params, RealmModel realm, int firstResult, int maxResults) {
+    public Stream<UserModel> searchForUserStream(Map<String, String> params, RealmModel realm, Integer firstResult, Integer maxResults) {
         String search = params.get(UserModel.SEARCH);
         if(search!=null) {
             int spaceIndex = search.lastIndexOf(' ');
@@ -402,7 +401,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
     }
 
     @Override
-    public Stream<UserModel> getGroupMembersStream(RealmModel realm, GroupModel group, int firstResult, int maxResults) {
+    public Stream<UserModel> getGroupMembersStream(RealmModel realm, GroupModel group, Integer firstResult, Integer maxResults) {
         return realm.getComponentsStream(model.getId(), LDAPStorageMapper.class.getName())
             .sorted(ldapMappersComparator.sortAsc())
             .map(mapperModel ->
@@ -418,7 +417,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
     }
 
     @Override
-    public Stream<UserModel> getRoleMembersStream(RealmModel realm, RoleModel role, int firstResult, int maxResults) {
+    public Stream<UserModel> getRoleMembersStream(RealmModel realm, RoleModel role, Integer firstResult, Integer maxResults) {
         return realm.getComponentsStream(model.getId(), LDAPStorageMapper.class.getName())
                 .sorted(ldapMappersComparator.sortAsc())
                 .map(mapperModel -> mapperManager.getMapper(mapperModel).getRoleMembers(realm, role, firstResult, maxResults))
@@ -687,8 +686,8 @@ public class LDAPStorageProvider implements UserStorageProvider,
     }
 
     @Override
-    public Set<String> getDisableableCredentialTypes(RealmModel realm, UserModel user) {
-        return Collections.EMPTY_SET;
+    public Stream<String> getDisableableCredentialTypesStream(RealmModel realm, UserModel user) {
+        return Stream.empty();
     }
 
     public Set<String> getSupportedCredentialTypes() {

@@ -62,6 +62,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.keycloak.models.AccountRoles;
 
 /**
  * Set of helper methods, which are useful in various model implementations.
@@ -350,6 +351,13 @@ public final class KeycloakModelUtils {
         return offlineRole;
     }
 
+    public static void setupDeleteAccount(ClientModel accountClient) {
+        RoleModel deleteOwnAccount = accountClient.getRole(AccountRoles.DELETE_ACCOUNT);
+        if (deleteOwnAccount == null) {
+            deleteOwnAccount = accountClient.addRole(AccountRoles.DELETE_ACCOUNT);
+        }
+        deleteOwnAccount.setDescription("${role_" + AccountRoles.DELETE_ACCOUNT + "}");
+    }
 
     /**
      * Recursively find all AuthenticationExecutionModel from specified flow or all it's subflows
@@ -386,7 +394,7 @@ public final class KeycloakModelUtils {
 
 
     public static Collection<String> resolveAttribute(UserModel user, String name, boolean aggregateAttrs) {
-        List<String> values = user.getAttribute(name);
+        List<String> values = user.getAttributeStream(name).collect(Collectors.toList());
         Set<String> aggrValues = new HashSet<String>();
         if (!values.isEmpty()) {
             if (!aggregateAttrs) {

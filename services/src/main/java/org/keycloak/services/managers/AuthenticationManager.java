@@ -98,6 +98,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.keycloak.common.util.ServerCookie.SameSiteAttributeValue;
 import static org.keycloak.services.util.CookieHelper.getCookie;
@@ -313,7 +314,7 @@ public class AuthenticationManager {
         }
 
         if (rootLogoutSession == null) {
-            rootLogoutSession = session.authenticationSessions().createRootAuthenticationSession(authSessionId, realm);
+            rootLogoutSession = session.authenticationSessions().createRootAuthenticationSession(realm, authSessionId);
         }
         if (browserCookie && !browserCookiePresent) {
             // Update cookie if needed
@@ -547,15 +548,15 @@ public class AuthenticationManager {
      * @param headers
      */
     public static void backchannelLogoutUserFromClient(KeycloakSession session, RealmModel realm, UserModel user, ClientModel client, UriInfo uriInfo, HttpHeaders headers) {
-        List<UserSessionModel> userSessions = session.sessions().getUserSessions(realm, user);
-        for (UserSessionModel userSession : userSessions) {
-            AuthenticatedClientSessionModel clientSession = userSession.getAuthenticatedClientSessionByClient(client.getId());
-            if (clientSession != null) {
-                backchannelLogoutClientSession(session, realm, clientSession, null, uriInfo, headers);
-                clientSession.setAction(AuthenticationSessionModel.Action.LOGGED_OUT.name());
-                org.keycloak.protocol.oidc.TokenManager.dettachClientSession(session.sessions(), realm, clientSession);
-            }
-        }
+        session.sessions().getUserSessionsStream(realm, user)
+                .map(userSession -> userSession.getAuthenticatedClientSessionByClient(client.getId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()) // collect to avoid concurrent modification.
+                .forEach(clientSession -> {
+                    backchannelLogoutClientSession(session, realm, clientSession, null, uriInfo, headers);
+                    clientSession.setAction(AuthenticationSessionModel.Action.LOGGED_OUT.name());
+                    TokenManager.dettachClientSession(session.sessions(), realm, clientSession);
+                });
     }
 
     public static Response browserLogout(KeycloakSession session,
@@ -969,8 +970,9 @@ public class AuthenticationManager {
 
         evaluateRequiredActionTriggers(session, authSession, request, event, realm, user);
 
-        if (!user.getRequiredActions().isEmpty()) {
-            return user.getRequiredActions().iterator().next();
+        Optional<String> reqAction = user.getRequiredActionsStream().findFirst();
+        if (reqAction.isPresent()) {
+            return reqAction.get();
         }
         if (!authSession.getRequiredActions().isEmpty()) {
             return authSession.getRequiredActions().iterator().next();
@@ -1028,13 +1030,12 @@ public class AuthenticationManager {
 
         event.detail(Details.CODE_ID, authSession.getParentSession().getId());
 
-        Set<String> requiredActions = user.getRequiredActions();
+        Stream<String> requiredActions = user.getRequiredActionsStream();
         Response action = executionActions(session, authSession, request, event, realm, user, requiredActions);
         if (action != null) return action;
 
         // executionActions() method should remove any duplicate actions that might be in the clientSession
-        requiredActions = authSession.getRequiredActions();
-        action = executionActions(session, authSession, request, event, realm, user, requiredActions);
+        action = executionActions(session, authSession, request, event, realm, user, authSession.getRequiredActions().stream());
         if (action != null) return action;
 
         if (client.isConsentRequired()) {
@@ -1125,16 +1126,13 @@ public class AuthenticationManager {
 
     protected static Response executionActions(KeycloakSession session, AuthenticationSessionModel authSession,
                                                HttpRequest request, EventBuilder event, RealmModel realm, UserModel user,
-                                               Set<String> requiredActions) {
+                                               Stream<String> requiredActions) {
 
-        List<RequiredActionProviderModel> sortedRequiredActions = sortRequiredActionsByPriority(realm, requiredActions);
-
-        for (RequiredActionProviderModel model : sortedRequiredActions) {
-            Response response = executeAction(session, authSession, model, request, event, realm, user, false);
-            if (response != null) {
-                return response;
-            }
-        }
+        Optional<Response> response = sortRequiredActionsByPriority(realm, requiredActions)
+                .map(model -> executeAction(session, authSession, model, request, event, realm, user, false))
+                .filter(Objects::nonNull).findFirst();
+        if (response.isPresent())
+            return response.get();
 
         String kcAction = authSession.getClientNote(Constants.KC_ACTION);
         if (kcAction != null) {
@@ -1210,21 +1208,17 @@ public class AuthenticationManager {
         return null;
     }
 
-    private static List<RequiredActionProviderModel> sortRequiredActionsByPriority(RealmModel realm, Set<String> requiredActions) {
-        List<RequiredActionProviderModel> actions = new ArrayList<>();
-        for (String action : requiredActions) {
-            RequiredActionProviderModel model = realm.getRequiredActionProviderByAlias(action);
-            if (model == null) {
-                logger.warnv("Could not find configuration for Required Action {0}, did you forget to register it?", action);
-                continue;
-            }
-            if (!model.isEnabled()) {
-                continue;
-            }
-            actions.add(model);
-        }
-        Collections.sort(actions, RequiredActionProviderModel.RequiredActionComparator.SINGLETON);
-        return actions;
+    private static Stream<RequiredActionProviderModel> sortRequiredActionsByPriority(RealmModel realm, Stream<String> requiredActions) {
+        return requiredActions.map(action -> {
+                    RequiredActionProviderModel model = realm.getRequiredActionProviderByAlias(action);
+                    if (model == null) {
+                        logger.warnv("Could not find configuration for Required Action {0}, did you forget to register it?", action);
+                    }
+                    return model;
+                })
+                .filter(Objects::nonNull)
+                .filter(RequiredActionProviderModel::isEnabled)
+                .sorted(RequiredActionProviderModel.RequiredActionComparator.SINGLETON);
     }
     
     public static void evaluateRequiredActionTriggers(final KeycloakSession session, final AuthenticationSessionModel authSession,
