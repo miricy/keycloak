@@ -332,7 +332,7 @@ public class ClientResource {
         }
         client.addClientScope(clientScope, defaultScope);
 
-        adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLIENT).resourcePath(session.getContext().getUri()).success();
+        adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLIENT_SCOPE_CLIENT_MAPPING).resourcePath(session.getContext().getUri()).success();
     }
 
 
@@ -348,7 +348,7 @@ public class ClientResource {
         }
         client.removeClientScope(clientScope);
 
-        adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT).resourcePath(session.getContext().getUri()).success();
+        adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT_SCOPE_CLIENT_MAPPING).resourcePath(session.getContext().getUri()).success();
     }
 
 
@@ -534,9 +534,9 @@ public class ClientResource {
         if (node == null) {
             throw new BadRequestException("Node not found in params");
         }
-        
+
         ReservedCharValidator.validate(node);
-        
+
         if (logger.isDebugEnabled()) logger.debug("Register node: " + node);
         client.registerNode(node, Time.currentTime());
         adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLUSTER_NODE).resourcePath(session.getContext().getUri(), node).success();

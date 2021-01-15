@@ -25,18 +25,37 @@ import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsername;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.core.Response;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.hamcrest.Matchers;
 import org.jboss.logging.Logger;
 import org.junit.After;
@@ -46,6 +65,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
+import org.keycloak.adapters.AdapterUtils;
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.authentication.authenticators.client.ClientIdAndSecretAuthenticator;
 import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
@@ -55,13 +75,21 @@ import org.keycloak.client.registration.Auth;
 import org.keycloak.client.registration.ClientRegistration;
 import org.keycloak.client.registration.ClientRegistrationException;
 import org.keycloak.common.Profile;
+import org.keycloak.common.util.Base64;
 import org.keycloak.common.util.Base64Url;
+import org.keycloak.common.util.KeyUtils;
+import org.keycloak.common.util.KeycloakUriBuilder;
 import org.keycloak.common.util.MultivaluedHashMap;
 import org.keycloak.common.util.Time;
+import org.keycloak.common.util.UriUtils;
+import org.keycloak.constants.ServiceUrlConstants;
+import org.keycloak.crypto.KeyType;
+import org.keycloak.crypto.SignatureSignerContext;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventType;
 import org.keycloak.jose.jws.Algorithm;
+import org.keycloak.jose.jws.JWSBuilder;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.Constants;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -70,6 +98,7 @@ import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.representations.JsonWebToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.representations.idm.ClientInitialAccessCreatePresentation;
 import org.keycloak.representations.idm.ClientInitialAccessPresentation;
@@ -85,6 +114,7 @@ import org.keycloak.services.Urls;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
 import org.keycloak.services.clientpolicy.ClientPolicyProvider;
 import org.keycloak.services.clientpolicy.DefaultClientPolicyProviderFactory;
+import org.keycloak.services.clientpolicy.condition.AnyClientConditionFactory;
 import org.keycloak.services.clientpolicy.condition.ClientAccessTypeConditionFactory;
 import org.keycloak.services.clientpolicy.condition.ClientPolicyConditionProvider;
 import org.keycloak.services.clientpolicy.condition.ClientUpdateContextConditionFactory;
@@ -94,6 +124,7 @@ import org.keycloak.services.clientpolicy.condition.ClientUpdateSourceRolesCondi
 import org.keycloak.services.clientpolicy.condition.ClientRolesConditionFactory;
 import org.keycloak.services.clientpolicy.condition.ClientScopesConditionFactory;
 import org.keycloak.services.clientpolicy.executor.ClientPolicyExecutorProvider;
+import org.keycloak.services.clientpolicy.executor.HolderOfKeyEnforceExecutorFactory;
 import org.keycloak.services.clientpolicy.executor.SecureClientAuthEnforceExecutorFactory;
 import org.keycloak.services.clientpolicy.executor.SecureRedirectUriEnforceExecutorFactory;
 import org.keycloak.services.clientpolicy.executor.PKCEEnforceExecutorFactory;
@@ -102,6 +133,7 @@ import org.keycloak.services.clientpolicy.executor.SecureRequestObjectExecutorFa
 import org.keycloak.services.clientpolicy.executor.SecureResponseTypeExecutorFactory;
 import org.keycloak.services.clientpolicy.executor.SecureSessionEnforceExecutorFactory;
 import org.keycloak.services.clientpolicy.executor.SecureSigningAlgorithmEnforceExecutorFactory;
+import org.keycloak.services.clientpolicy.executor.SecureSigningAlgorithmForSignedJwtEnforceExecutorFactory;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
@@ -110,12 +142,16 @@ import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.client.resources.TestApplicationResourceUrls;
 import org.keycloak.testsuite.client.resources.TestOIDCEndpointsApplicationResource;
+import org.keycloak.testsuite.rest.resource.TestingOIDCEndpointsApplicationResource;
 import org.keycloak.testsuite.rest.resource.TestingOIDCEndpointsApplicationResource.AuthorizationEndpointRequestObject;
 import org.keycloak.testsuite.services.clientpolicy.condition.TestRaiseExeptionConditionFactory;
+import org.keycloak.testsuite.util.MutualTLSUtils;
 import org.keycloak.testsuite.util.OAuthClient;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.keycloak.admin.client.resource.RolesResource;
+import org.keycloak.testsuite.util.RoleBuilder;
 
 import org.keycloak.testsuite.util.ServerURLs;
 import org.keycloak.util.JsonSerialization;
@@ -365,9 +401,7 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         assertEquals(OIDCLoginProtocol.CLIENT_SECRET_BASIC, response.getTokenEndpointAuthMethod());
         events.expect(EventType.CLIENT_INFO).client(clientId).user(Matchers.isEmptyOrNullString()).assertEvent();
 
-        updateClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles(Arrays.asList("sample-client-role").toArray(new String[1]));
-        });
+        adminClient.realm(REALM_NAME).clients().get(clientId).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
         successfulLoginAndLogoutWithPKCE(response.getClientId(), clientSecret, userName, userPassword);
     }
@@ -380,9 +414,7 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
             assertEquals(OIDCLoginProtocol.CLIENT_SECRET_BASIC, clientRep.getTokenEndpointAuthMethod());
             events.expect(EventType.CLIENT_REGISTER).client(clientId).user(Matchers.isEmptyOrNullString()).assertEvent();
             events.expect(EventType.CLIENT_INFO).client(clientId).user(Matchers.isEmptyOrNullString()).assertEvent();
-            updateClientByAdmin(clientId, (ClientRepresentation cr) -> {
-                cr.setDefaultRoles((String[]) Arrays.asList("sample-client-role").toArray(new String[1]));
-            });
+            adminClient.realm(REALM_NAME).clients().get(clientId).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
             successfulLoginAndLogout(clientId, clientRep.getClientSecret());
 
@@ -415,9 +447,9 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientId = "Zahlungs-App";
         String clientSecret = "secret";
         String cid = createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role").toArray(new String[1]));
             clientRep.setSecret(clientSecret);
         });
+        adminClient.realm(REALM_NAME).clients().get(cid).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
         try {
             successfulLoginAndLogout(clientId, clientSecret);
@@ -466,10 +498,9 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientId = "Zahlungs-App";
         String clientSecret = "secret";
         String cid = createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
-            String[] defaultRoles = {"sample-client-role"};
-            clientRep.setDefaultRoles(defaultRoles);
             clientRep.setSecret(clientSecret);
         });
+        adminClient.realm(REALM_NAME).clients().get(cid).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
         try {
             successfulLoginAndLogout(clientId, clientSecret);
@@ -553,17 +584,21 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientAlphaId = "Alpha-App";
         String clientAlphaSecret = "secretAlpha";
         String cAlphaId = createClientByAdmin(clientAlphaId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-alpha", "sample-client-role-common").toArray(new String[2]));
             clientRep.setSecret(clientAlphaSecret);
             clientRep.setClientAuthenticatorType(JWTClientSecretAuthenticator.PROVIDER_ID);
         });
+        RolesResource rolesResourceAlpha = adminClient.realm(REALM_NAME).clients().get(cAlphaId).roles();
+        rolesResourceAlpha.create(RoleBuilder.create().name("sample-client-role-alpha").build());
+        rolesResourceAlpha.create(RoleBuilder.create().name("sample-client-role-common").build());
 
         String clientBetaId = "Beta-App";
         String clientBetaSecret = "secretBeta";
         String cBetaId = createClientByAdmin(clientBetaId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-beta", "sample-client-role-common").toArray(new String[2]));
             clientRep.setSecret(clientBetaSecret);
         });
+        RolesResource rolesResourceBeta = adminClient.realm(REALM_NAME).clients().get(cBetaId).roles();
+        rolesResourceBeta.create(RoleBuilder.create().name("sample-client-role-beta").build());
+        rolesResourceBeta.create(RoleBuilder.create().name("sample-client-role-common").build());
 
         try {
             assertEquals(ClientIdAndSecretAuthenticator.PROVIDER_ID, getClientByAdmin(cAlphaId).getClientAuthenticatorType());
@@ -618,13 +653,12 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientId = "Zahlungs-App";
         String clientSecret = "secret";
         String cid = createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
-            String[] defaultRoles = {"sample-client-role"};
-            clientRep.setDefaultRoles(defaultRoles);
             clientRep.setSecret(clientSecret);
             clientRep.setStandardFlowEnabled(Boolean.TRUE);
             clientRep.setImplicitFlowEnabled(Boolean.TRUE);
             clientRep.setPublicClient(Boolean.FALSE);
         });
+        adminClient.realm(REALM_NAME).clients().get(cid).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
         try {
             oauth.clientId(clientId);
@@ -686,10 +720,9 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientId = "Zahlungs-App";
         String clientSecret = "secret";
         String cid = createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
-            String[] defaultRoles = {"sample-client-role"};
-            clientRep.setDefaultRoles(defaultRoles);
             clientRep.setSecret(clientSecret);
         });
+        adminClient.realm(REALM_NAME).clients().get(cid).roles().create(RoleBuilder.create().name("sample-client-role").build());
 
         try {
             oauth.clientId(clientId);
@@ -791,16 +824,16 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         String clientAlphaId = "Alpha-App";
         String clientAlphaSecret = "secretAlpha";
         String cAlphaId = createClientByAdmin(clientAlphaId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-alpha").toArray(new String[1]));
             clientRep.setSecret(clientAlphaSecret);
         });
+        adminClient.realm(REALM_NAME).clients().get(cAlphaId).roles().create(RoleBuilder.create().name("sample-client-role-alpha").build());
 
         String clientBetaId = "Beta-App";
         String clientBetaSecret = "secretBeta";
         String cBetaId = createClientByAdmin(clientBetaId, (ClientRepresentation clientRep) -> {
-            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-beta").toArray(new String[1]));
             clientRep.setSecret(clientBetaSecret);
         });
+        adminClient.realm(REALM_NAME).clients().get(cBetaId).roles().create(RoleBuilder.create().name("sample-client-role-beta").build());
 
         try {
             successfulLoginAndLogout(clientAlphaId, clientAlphaSecret);
@@ -892,7 +925,6 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
             // create by Admin REST API - fail
             try {
                 createClientByAdmin("App-by-Admin", (ClientRepresentation clientRep) -> {
-                    clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-beta").toArray(new String[1]));
                     clientRep.setSecret("secretBeta");
                     clientRep.setAttributes(new HashMap<>());
                     clientRep.getAttributes().put(OIDCConfigAttributes.USER_INFO_RESPONSE_SIGNATURE_ALG, Algorithm.none.name());
@@ -935,7 +967,6 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
             // create dynamically - fail
             try {
                 createClientByAdmin("App-in-Dynamic", (ClientRepresentation clientRep) -> {
-                    clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-beta").toArray(new String[1]));
                     clientRep.setSecret("secretBeta");
                     clientRep.setAttributes(new HashMap<>());
                     clientRep.getAttributes().put(OIDCConfigAttributes.USER_INFO_RESPONSE_SIGNATURE_ALG, Algorithm.RS384.name());
@@ -1233,6 +1264,456 @@ public class ClientPolicyBasicsTest extends AbstractKeycloakTest {
         } finally {
             deleteClientByAdmin(cid);
         }
+    }
+
+    @Test
+    public void testSecureSigningAlgorithmForSignedJwtEnforceExecutor() throws Exception {
+        // policy including client role condition
+        String policyName = "MyPolicy";
+        createPolicy(policyName, DefaultClientPolicyProviderFactory.PROVIDER_ID, null, null, null);
+        logger.info("... Created Policy : " + policyName);
+
+        createCondition("ClientRolesCondition", ClientRolesConditionFactory.PROVIDER_ID, null, (ComponentRepresentation provider) -> {
+            setConditionClientRoles(provider, new ArrayList<>(Arrays.asList("sample-client-role-alpha", "sample-client-role-zeta")));
+        });
+        registerCondition("ClientRolesCondition", policyName);
+        logger.info("... Registered Condition : " + "ClientRolesCondition");
+
+        createExecutor("SecureSigningAlgorithmForSignedJwtEnforceExecutor", SecureSigningAlgorithmForSignedJwtEnforceExecutorFactory.PROVIDER_ID, null,
+                       (ComponentRepresentation provider) -> {
+                       });
+
+        registerExecutor("SecureSigningAlgorithmForSignedJwtEnforceExecutor", policyName);
+        logger.info("... Registered Executor : SecureSigningAlgorithmForSignedJwtEnforceExecutor");
+
+        // crate a client with client role
+        String clientAlphaId = "Alpha-App";
+        String clientAlphaSecret = "secretAlpha";
+        String cAlphaId = null;
+
+            cAlphaId = createClientByAdmin(clientAlphaId, (ClientRepresentation clientRep) -> {
+                clientRep.setDefaultRoles(Arrays.asList("sample-client-role-alpha", "sample-client-role-common").toArray(new String[2]));
+                clientRep.setSecret(clientAlphaSecret);
+                clientRep.setClientAuthenticatorType(JWTClientAuthenticator.PROVIDER_ID);
+                clientRep.setAttributes(new HashMap<>());
+                clientRep.getAttributes().put(OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG, org.keycloak.crypto.Algorithm.ES256);
+            });
+
+        try {
+            ClientResource clientResource = ApiUtil.findClientByClientId(adminClient.realm(REALM_NAME), clientAlphaId);
+            ClientRepresentation clientRep = clientResource.toRepresentation();
+
+            KeyPair keyPair = setupJwks(org.keycloak.crypto.Algorithm.ES256, clientRep, clientResource);
+            PublicKey publicKey = keyPair.getPublic();
+            PrivateKey privateKey = keyPair.getPrivate();
+
+            successfulLoginAndLogoutWithSignedJWT(clientAlphaId, privateKey, publicKey);
+        } finally {
+            deleteClientByAdmin(cAlphaId);
+        }
+    }
+
+    @Test
+    public void testAnyClientCondition() throws ClientRegistrationException, ClientPolicyException {
+        String policyName = "MyPolicy";
+        createPolicy(policyName, DefaultClientPolicyProviderFactory.PROVIDER_ID, null, null, null);
+        logger.info("... Created Policy : " + policyName);
+        createCondition("AnyClientCondition", AnyClientConditionFactory.PROVIDER_ID, null, (ComponentRepresentation provider) -> {
+        });
+        registerCondition("AnyClientCondition", policyName);
+        logger.info("... Registered Condition : " + "AnyClientCondition");
+
+        createExecutor("SecureSessionEnforceExecutor", SecureSessionEnforceExecutorFactory.PROVIDER_ID, null, (ComponentRepresentation provider) -> {
+        });
+        registerExecutor("SecureSessionEnforceExecutor", policyName);
+        logger.info("... Registered Executor : SecureSessionEnforceExecutor-beta");
+
+        String clientAlphaId = "Alpha-App";
+        String clientAlphaSecret = "secretAlpha";
+        String cAlphaId = createClientByAdmin(clientAlphaId, (ClientRepresentation clientRep) -> {
+            clientRep.setDefaultRoles((String[]) Arrays.asList("sample-client-role-alpha").toArray(new String[1]));
+            clientRep.setSecret(clientAlphaSecret);
+        });
+
+        String clientBetaId = "Beta-App";
+        String clientBetaSecret = "secretBeta";
+        String cBetaId = createClientByAdmin(clientBetaId, (ClientRepresentation clientRep) -> {
+            clientRep.setSecret(clientBetaSecret);
+        });
+
+        try {
+            failLoginWithoutSecureSessionParameter(clientBetaId, "Missing parameter: nonce");
+            oauth.nonce("yesitisnonce");
+            successfulLoginAndLogout(clientAlphaId, clientAlphaSecret);
+        } catch (Exception e) {
+            fail();
+        } finally {
+            deleteClientByAdmin(cAlphaId);
+            deleteClientByAdmin(cBetaId);
+        }
+    }
+
+    @Test
+    public void testHolderOfKeyEnforceExecutor() throws Exception {
+        String policyName = "MyPolicy";
+        createPolicy(policyName, DefaultClientPolicyProviderFactory.PROVIDER_ID, null, null, null);
+        logger.info("... Created Policy : " + policyName);
+
+        createCondition("ClientRolesCondition", ClientRolesConditionFactory.PROVIDER_ID, null, (ComponentRepresentation provider) -> {
+            setConditionClientRoles(provider, Collections.singletonList("sample-client-role"));
+        });
+        registerCondition("ClientRolesCondition", policyName);
+        logger.info("... Registered Condition : ClientRolesCondition");
+
+        createExecutor("HolderOfKeyEnforceExecutor", HolderOfKeyEnforceExecutorFactory.PROVIDER_ID, null, (ComponentRepresentation provider) -> {
+            setExecutorAugmentActivate(provider);
+        });
+        registerExecutor("HolderOfKeyEnforceExecutor", policyName);
+        logger.info("... Registered Executor : HolderOfKeyEnforceExecutor");
+
+        String clientName = "Zahlungs-App";
+        String userPassword = "password";
+        String clientId = createClientDynamically(clientName, (OIDCClientRepresentation clientRep) -> {
+            clientRep.setTokenEndpointAuthMethod(OIDCLoginProtocol.TLS_CLIENT_AUTH);
+        });
+
+        try {
+            checkMtlsFlow(userPassword);
+        } finally {
+            deleteClientByAdmin(clientId);
+        }
+    }
+
+    private void checkMtlsFlow(String password) throws IOException {
+        ClientResource clientResource = ApiUtil.findClientByClientId(adminClient.realm(REALM_NAME), "test-app");
+        ClientRepresentation clientRep = clientResource.toRepresentation();
+        clientRep.setDefaultRoles(new String[]{"sample-client-role"});
+        OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRep).setUseMtlsHoKToken(true);
+
+        clientResource.update(clientRep);
+
+        // Check login.
+        OAuthClient.AuthorizationEndpointResponse loginResponse = oauth.doLogin("test-user@localhost", password);
+        Assert.assertNull(loginResponse.getError());
+
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        // Check token obtaining.
+        OAuthClient.AccessTokenResponse accessTokenResponse;
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            accessTokenResponse = oauth.doAccessTokenRequest(code, password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(200, accessTokenResponse.getStatusCode());
+
+        // Check token refresh.
+        OAuthClient.AccessTokenResponse accessTokenResponseRefreshed;
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            accessTokenResponseRefreshed = oauth.doRefreshTokenRequest(accessTokenResponse.getRefreshToken(), password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(200, accessTokenResponseRefreshed.getStatusCode());
+
+        // Check token introspection.
+        String tokenResponse;
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            tokenResponse = oauth.introspectTokenWithClientCredential(TEST_CLIENT, password, "access_token", accessTokenResponse.getAccessToken(), client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        Assert.assertNotNull(tokenResponse);
+        TokenMetadataRepresentation tokenMetadataRepresentation = JsonSerialization.readValue(tokenResponse, TokenMetadataRepresentation.class);
+        Assert.assertTrue(tokenMetadataRepresentation.isActive());
+
+        // Check token revoke.
+        CloseableHttpResponse tokenRevokeResponse;
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            tokenRevokeResponse = oauth.doTokenRevoke(accessTokenResponse.getRefreshToken(), "refresh_token", password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(200, tokenRevokeResponse.getStatusLine().getStatusCode());
+
+        // Check logout.
+        CloseableHttpResponse logoutResponse;
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            logoutResponse = oauth.doLogout(accessTokenResponse.getRefreshToken(), password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+
+        assertEquals(204, logoutResponse.getStatusLine().getStatusCode());
+
+        // Check login.
+        loginResponse = oauth.doLogin("test-user@localhost", password);
+        Assert.assertNull(loginResponse.getError());
+
+        code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        // Check token obtaining without certificate
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithoutKeyStoreAndTrustStore()) {
+            accessTokenResponse = oauth.doAccessTokenRequest(code, password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(400, accessTokenResponse.getStatusCode());
+        assertEquals(OAuthErrorException.INVALID_GRANT, accessTokenResponse.getError());
+
+        // Check frontchannel logout and login.
+        oauth.openLogout();
+        loginResponse = oauth.doLogin("test-user@localhost", password);
+        Assert.assertNull(loginResponse.getError());
+
+        code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        // Check token obtaining.
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            accessTokenResponse = oauth.doAccessTokenRequest(code, password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(200, accessTokenResponse.getStatusCode());
+
+        // Check token refresh with other certificate
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithOtherKeyStoreAndTrustStore()) {
+            accessTokenResponseRefreshed = oauth.doRefreshTokenRequest(accessTokenResponse.getRefreshToken(), password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(401, accessTokenResponseRefreshed.getStatusCode());
+        assertEquals(Errors.NOT_ALLOWED, accessTokenResponseRefreshed.getError());
+
+        // Check token revoke with other certificate
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithOtherKeyStoreAndTrustStore()) {
+            tokenRevokeResponse = oauth.doTokenRevoke(accessTokenResponse.getRefreshToken(), "refresh_token", password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(401, tokenRevokeResponse.getStatusLine().getStatusCode());
+
+        // Check logout without certificate
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithoutKeyStoreAndTrustStore()) {
+            logoutResponse = oauth.doLogout(accessTokenResponse.getRefreshToken(), password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        assertEquals(401, logoutResponse.getStatusLine().getStatusCode());
+
+        // Check logout.
+        try (CloseableHttpClient client = MutualTLSUtils.newCloseableHttpClientWithDefaultKeyStoreAndTrustStore()) {
+            logoutResponse = oauth.doLogout(accessTokenResponse.getRefreshToken(), password, client);
+        }  catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+    }
+
+    private CloseableHttpResponse sendRequest(String requestUrl, List<NameValuePair> parameters) throws Exception {
+        CloseableHttpClient client = new DefaultHttpClient();
+        try {
+            HttpPost post = new HttpPost(requestUrl);
+            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            post.setEntity(formEntity);
+            return client.execute(post);
+        } finally {
+            oauth.closeClient(client);
+        }
+    }
+
+    private void successfulLoginAndLogoutWithSignedJWT(String clientId, PrivateKey privateKey, PublicKey publicKey) throws Exception {
+        String signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+
+        oauth.clientId(clientId);
+        oauth.doLogin("test-user@localhost", "password");
+        EventRepresentation loginEvent = events.expectLogin()
+                                                 .client(clientId)
+                                                 .assertEvent();
+        String sessionId = loginEvent.getSessionId();
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        //obtain access token
+        OAuthClient.AccessTokenResponse response  = doAccessTokenRequestWithSignedJWT(code, signedJwt);
+
+        assertEquals(200, response.getStatusCode());
+        oauth.verifyToken(response.getAccessToken());
+        RefreshToken refreshToken = oauth.parseRefreshToken(response.getRefreshToken());
+        assertEquals(sessionId, refreshToken.getSessionState());
+        assertEquals(sessionId, refreshToken.getSessionState());
+        events.expectCodeToToken(loginEvent.getDetails().get(Details.CODE_ID), loginEvent.getSessionId())
+                .client(clientId)
+                .detail(Details.CLIENT_AUTH_METHOD, JWTClientAuthenticator.PROVIDER_ID)
+                .assertEvent();
+
+        //refresh token
+        signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+        OAuthClient.AccessTokenResponse refreshedResponse = doRefreshTokenRequestWithSignedJWT(response.getRefreshToken(), signedJwt);
+        assertEquals(200, refreshedResponse.getStatusCode());
+
+        //introspect token
+        signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+        HttpResponse tokenIntrospectionResponse = doTokenIntrospectionWithSignedJWT("access_token", refreshedResponse.getAccessToken(), signedJwt);
+        assertEquals(200, tokenIntrospectionResponse.getStatusLine().getStatusCode());
+
+        //revoke token
+        signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+        HttpResponse revokeTokenResponse = doTokenRevokeWithSignedJWT("refresh_toke", refreshedResponse.getRefreshToken(), signedJwt);
+        assertEquals(200, revokeTokenResponse.getStatusLine().getStatusCode());
+
+        signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+        OAuthClient.AccessTokenResponse tokenRes = doRefreshTokenRequestWithSignedJWT(refreshedResponse.getRefreshToken(), signedJwt);
+        assertEquals(400, tokenRes.getStatusCode());
+        assertEquals(OAuthErrorException.INVALID_GRANT, tokenRes.getError());
+
+        //logout
+        signedJwt = createSignedRequestToken(clientId, getRealmInfoUrl(), privateKey, publicKey, org.keycloak.crypto.Algorithm.ES256);
+        HttpResponse logoutResponse = doLogoutWithSignedJWT(refreshedResponse.getRefreshToken(), signedJwt);
+        assertEquals(204, logoutResponse.getStatusLine().getStatusCode());
+
+    }
+
+    private KeyPair setupJwks(String algorithm, ClientRepresentation clientRepresentation, ClientResource clientResource) throws Exception {
+        // generate and register client keypair
+        TestOIDCEndpointsApplicationResource oidcClientEndpointsResource = testingClient.testApp().oidcClientEndpoints();
+        oidcClientEndpointsResource.generateKeys(algorithm);
+        Map<String, String> generatedKeys = oidcClientEndpointsResource.getKeysAsBase64();
+        KeyPair keyPair = getKeyPairFromGeneratedBase64(generatedKeys, algorithm);
+
+        // use and set jwks_url
+        OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRepresentation).setUseJwksUrl(true);
+        String jwksUrl = TestApplicationResourceUrls.clientJwksUri();
+        OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRepresentation).setJwksUrl(jwksUrl);
+        clientResource.update(clientRepresentation);
+
+        // set time offset, so that new keys are downloaded
+        setTimeOffset(20);
+
+        return keyPair;
+    }
+
+    private KeyPair getKeyPairFromGeneratedBase64(Map<String, String> generatedKeys, String algorithm) throws Exception {
+        // It seems that PemUtils.decodePrivateKey, decodePublicKey can only treat RSA type keys, not EC type keys. Therefore, these are not used.
+        String privateKeyBase64 = generatedKeys.get(TestingOIDCEndpointsApplicationResource.PRIVATE_KEY);
+        String publicKeyBase64 =  generatedKeys.get(TestingOIDCEndpointsApplicationResource.PUBLIC_KEY);
+        PrivateKey privateKey = decodePrivateKey(Base64.decode(privateKeyBase64), algorithm);
+        PublicKey publicKey = decodePublicKey(Base64.decode(publicKeyBase64), algorithm);
+        return new KeyPair(publicKey, privateKey);
+    }
+
+    private static PrivateKey decodePrivateKey(byte[] der, String algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(der);
+        String keyAlg = getKeyAlgorithmFromJwaAlgorithm(algorithm);
+        KeyFactory kf = KeyFactory.getInstance(keyAlg, "BC");
+        return kf.generatePrivate(spec);
+    }
+
+    private static PublicKey decodePublicKey(byte[] der, String algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
+        X509EncodedKeySpec spec = new X509EncodedKeySpec(der);
+        String keyAlg = getKeyAlgorithmFromJwaAlgorithm(algorithm);
+        KeyFactory kf = KeyFactory.getInstance(keyAlg, "BC");
+        return kf.generatePublic(spec);
+    }
+
+    private String createSignedRequestToken(String clientId, String realmInfoUrl, PrivateKey privateKey, PublicKey publicKey, String algorithm) throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+        JsonWebToken jwt = createRequestToken(clientId, realmInfoUrl);
+        String kid = KeyUtils.createKeyId(publicKey);
+        SignatureSignerContext signer = oauth.createSigner(privateKey, kid, algorithm);
+        return new JWSBuilder().kid(kid).jsonContent(jwt).sign(signer);
+    }
+
+    private OAuthClient.AccessTokenResponse doAccessTokenRequestWithSignedJWT(String code, String signedJwt) throws Exception {
+        List<NameValuePair> parameters = new LinkedList<>();
+        parameters.add(new BasicNameValuePair(OAuth2Constants.GRANT_TYPE, OAuth2Constants.AUTHORIZATION_CODE));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CODE, code));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.REDIRECT_URI, oauth.getRedirectUri()));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION_TYPE, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION, signedJwt));
+
+        CloseableHttpResponse response = sendRequest(oauth.getAccessTokenUrl(), parameters);
+        return new OAuthClient.AccessTokenResponse(response);
+    }
+
+    private OAuthClient.AccessTokenResponse doRefreshTokenRequestWithSignedJWT(String refreshToken, String signedJwt) throws Exception {
+        List<NameValuePair> parameters = new LinkedList<>();
+        parameters.add(new BasicNameValuePair(OAuth2Constants.GRANT_TYPE, OAuth2Constants.REFRESH_TOKEN));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.REFRESH_TOKEN, refreshToken));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION_TYPE, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION, signedJwt));
+
+        CloseableHttpResponse response = sendRequest(oauth.getRefreshTokenUrl(), parameters);
+        return new OAuthClient.AccessTokenResponse(response);
+    }
+
+    private HttpResponse doTokenIntrospectionWithSignedJWT(String tokenType, String tokenToIntrospect, String signedJwt) throws Exception {
+        List<NameValuePair> parameters = new LinkedList<>();
+        parameters.add(new BasicNameValuePair("token", tokenToIntrospect));
+        parameters.add(new BasicNameValuePair("token_type_hint", tokenType));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION_TYPE, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION, signedJwt));
+
+        return sendRequest(oauth.getTokenIntrospectionUrl(), parameters);
+    }
+
+    private HttpResponse doTokenRevokeWithSignedJWT(String tokenType, String tokenToIntrospect, String signedJwt) throws Exception {
+        List<NameValuePair> parameters = new LinkedList<>();
+        parameters.add(new BasicNameValuePair("token", tokenToIntrospect));
+        parameters.add(new BasicNameValuePair("token_type_hint", tokenType));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION_TYPE, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION, signedJwt));
+
+        return sendRequest(oauth.getTokenRevocationUrl(), parameters);
+    }
+
+    private HttpResponse doLogoutWithSignedJWT(String refreshToken, String signedJwt) throws Exception {
+        List<NameValuePair> parameters = new LinkedList<>();
+        parameters.add(new BasicNameValuePair(OAuth2Constants.GRANT_TYPE, OAuth2Constants.REFRESH_TOKEN));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.REFRESH_TOKEN, refreshToken));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION_TYPE, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT));
+        parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ASSERTION, signedJwt));
+
+        return sendRequest(oauth.getLogoutUrl().build(), parameters);
+    }
+
+    private JsonWebToken createRequestToken(String clientId, String realmInfoUrl) {
+        JsonWebToken reqToken = new JsonWebToken();
+        reqToken.id(AdapterUtils.generateId());
+        reqToken.issuer(clientId);
+        reqToken.subject(clientId);
+        reqToken.audience(realmInfoUrl);
+
+        int now = Time.currentTime();
+        reqToken.issuedAt(now);
+        reqToken.expiration(now + 10);
+        reqToken.notBefore(now);
+
+        return reqToken;
+    }
+
+    private static String getKeyAlgorithmFromJwaAlgorithm(String jwaAlgorithm) {
+        String keyAlg = null;
+        switch (jwaAlgorithm) {
+            case org.keycloak.crypto.Algorithm.RS256:
+            case org.keycloak.crypto.Algorithm.RS384:
+            case org.keycloak.crypto.Algorithm.RS512:
+            case org.keycloak.crypto.Algorithm.PS256:
+            case org.keycloak.crypto.Algorithm.PS384:
+            case org.keycloak.crypto.Algorithm.PS512:
+                keyAlg = KeyType.RSA;
+                break;
+            case org.keycloak.crypto.Algorithm.ES256:
+            case org.keycloak.crypto.Algorithm.ES384:
+            case org.keycloak.crypto.Algorithm.ES512:
+                keyAlg = KeyType.EC;
+                break;
+            default :
+                throw new RuntimeException("Unsupported signature algorithm");
+        }
+        return keyAlg;
+    }
+
+    private String getRealmInfoUrl() {
+        String authServerBaseUrl = UriUtils.getOrigin(oauth.getRedirectUri()) + "/auth";
+        return KeycloakUriBuilder.fromUri(authServerBaseUrl).path(ServiceUrlConstants.REALM_INFO_PATH).build(REALM_NAME).toString();
     }
 
     private AuthorizationEndpointRequestObject createValidRequestObjectForSecureRequestObjectExecutor(String clientId) throws URISyntaxException {
