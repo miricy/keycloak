@@ -66,6 +66,7 @@ import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.representations.RefreshToken;
+import org.keycloak.representations.UserInfo;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.runonserver.RunOnServerException;
 import org.keycloak.util.BasicAuthHelper;
@@ -864,6 +865,18 @@ public class OAuthClient {
         }
     }
 
+    public UserInfo doUserInfoRequest(String accessToken) {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            HttpGet get = new HttpGet(getUserInfoUrl());
+            get.setHeader("Authorization", "Bearer " + accessToken);
+            try (CloseableHttpResponse response = client.execute(get)) {
+                return JsonSerialization.readValue(response.getEntity().getContent(), UserInfo.class);
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void closeClient(CloseableHttpClient client) {
         try {
             client.close();
@@ -1118,6 +1131,11 @@ public class OAuthClient {
         return b.build(realm).toString();
     }
 
+    public String getUserInfoUrl() {
+        UriBuilder b = OIDCLoginProtocolService.userInfoUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
     public OAuthClient baseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
         return this;
@@ -1239,6 +1257,13 @@ public class OAuthClient {
             customParameters = new HashMap<>();
         }
         customParameters.put(key, value);
+        return this;
+    }
+
+    public OAuthClient removeCustomParameter(String key) {
+        if (customParameters != null) {
+            customParameters.remove(key);
+        }
         return this;
     }
 

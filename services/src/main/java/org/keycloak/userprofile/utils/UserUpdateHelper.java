@@ -17,11 +17,16 @@
 
 package org.keycloak.userprofile.utils;
 
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.userprofile.LegacyUserProfileProviderFactory;
 import org.keycloak.userprofile.UserProfile;
 import org.keycloak.userprofile.UserProfileAttributes;
+import org.keycloak.userprofile.UserProfileProvider;
+import org.keycloak.userprofile.profile.representations.UserRepresentationUserProfile;
 import org.keycloak.userprofile.validation.UserUpdateEvent;
 
 import java.util.Collections;
@@ -46,19 +51,36 @@ public class UserUpdateHelper {
     }
 
     public static void updateIdpReview(RealmModel realm, UserModel userModelDelegate, UserProfile updatedProfile) {
-        update(UserUpdateEvent.IdpReview, realm, userModelDelegate, updatedProfile);
+        update(UserUpdateEvent.IdpReview, realm, userModelDelegate, updatedProfile.getAttributes(), false);
     }
 
     public static void updateUserProfile(RealmModel realm, UserModel user, UserProfile updatedProfile) {
-        update(UserUpdateEvent.UpdateProfile, realm, user, updatedProfile);
+        update(UserUpdateEvent.UpdateProfile, realm, user, updatedProfile.getAttributes(), false);
     }
 
     public static void updateAccount(RealmModel realm, UserModel user, UserProfile updatedProfile) {
         update(UserUpdateEvent.Account, realm, user, updatedProfile);
     }
 
-    public static void updateUserResource(RealmModel realm, UserModel user, UserProfile userRepresentationUserProfile) {
-        update(UserUpdateEvent.UserResource, realm, user, userRepresentationUserProfile);
+    /**
+     * <p>This method should be used when account is updated through the old console where the behavior is different
+     * than when using the new Account REST API and console in regards to how user attributes are managed.
+     *
+     * @deprecated Remove this method as soon as the old console is no longer part of the distribution
+     * @param realm
+     * @param user
+     * @param updatedProfile
+     */
+    @Deprecated
+    public static void updateAccountOldConsole(RealmModel realm, UserModel user, UserProfile updatedProfile) {
+        update(UserUpdateEvent.Account, realm, user, updatedProfile.getAttributes(), false);
+    }
+
+    public static void updateUserResource(KeycloakSession session, UserModel user, UserRepresentation rep, boolean removeExistingAttributes) {
+        UserProfileProvider profileProvider = session.getProvider(UserProfileProvider.class, LegacyUserProfileProviderFactory.PROVIDER_ID);
+        RealmModel realm = session.getContext().getRealm();
+        UserRepresentationUserProfile userProfile = new UserRepresentationUserProfile(rep, profileProvider);
+        update(UserUpdateEvent.UserResource, realm, user, userProfile.getAttributes(), removeExistingAttributes);
     }
 
     /**
@@ -114,8 +136,8 @@ public class UserUpdateHelper {
         }
     }
 
-    private static void updateAttributes(UserModel currentUser, Map<String, List<String>> updatedUser, boolean removeMissingAttributes) {
-        for (Map.Entry<String, List<String>> attr : updatedUser.entrySet()) {
+    private static void updateAttributes(UserModel currentUser, UserProfileAttributes attributes, boolean removeMissingAttributes) {
+        for (Map.Entry<String, List<String>> attr : attributes.entrySet()) {
             List<String> currentValue = currentUser.getAttributeStream(attr.getKey()).collect(Collectors.toList());
             //In case of username we need to provide lower case values
             List<String> updatedValue = attr.getKey().equals(UserModel.USERNAME) ? AttributeToLower(attr.getValue()) : attr.getValue();
@@ -125,9 +147,12 @@ public class UserUpdateHelper {
         }
         if (removeMissingAttributes) {
             Set<String> attrsToRemove = new HashSet<>(currentUser.getAttributes().keySet());
-            attrsToRemove.removeAll(updatedUser.keySet());
+            attrsToRemove.removeAll(attributes.keySet());
 
             for (String attr : attrsToRemove) {
+                if (attributes.isReadOnlyAttribute(attr)) {
+                    continue;
+                }
                 currentUser.removeAttribute(attr);
             }
 

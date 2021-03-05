@@ -245,6 +245,13 @@ public abstract class MapClientAdapter extends AbstractClientModel<MapClientEnti
 
     @Override
     public void setAttribute(String name, String value) {
+        boolean valueUndefined = value == null || "".equals(value.trim());
+
+        if (valueUndefined) {
+            removeAttribute(name);
+            return;
+        }
+
         entity.setAttribute(name, value);
     }
 
@@ -540,5 +547,10 @@ public abstract class MapClientAdapter extends AbstractClientModel<MapClientEnti
           .filter(pm -> Objects.equals(pm.getProtocol(), protocol) && Objects.equals(pm.getName(), name))
           .findAny()
           .orElse(null);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s@%08x", getClientId(), System.identityHashCode(this));
     }
 }

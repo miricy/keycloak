@@ -294,14 +294,14 @@ public class TokenManager {
      */
     public static UserModel lookupUserFromStatelessToken(KeycloakSession session, RealmModel realm, AccessToken token) {
         // Try to lookup user based on "sub" claim. It should work for most cases with some rare exceptions (EG. OIDC "pairwise" subjects)
-        UserModel user = session.users().getUserById(token.getSubject(), realm);
+        UserModel user = session.users().getUserById(realm, token.getSubject());
         if (user != null) {
             return user;
         }
 
         // Fallback to lookup user based on username (preferred_username claim)
         if (token.getPreferredUsername() != null) {
-            user = session.users().getUserByUsername(token.getPreferredUsername(), realm);
+            user = session.users().getUserByUsername(realm, token.getPreferredUsername());
             if (user != null) {
                 return user;
             }
@@ -497,18 +497,13 @@ public class TokenManager {
     }
 
 
-    public static void dettachClientSession(UserSessionProvider sessions, RealmModel realm, AuthenticatedClientSessionModel clientSession) {
+    public static void dettachClientSession(AuthenticatedClientSessionModel clientSession) {
         UserSessionModel userSession = clientSession.getUserSession();
         if (userSession == null) {
             return;
         }
 
         clientSession.detachFromUserSession();
-
-        // TODO: Might need optimization to prevent loading client sessions from cache in getAuthenticatedClientSessions()
-        if (userSession.getAuthenticatedClientSessions().isEmpty()) {
-            sessions.removeUserSession(realm, userSession);
-        }
     }
 
 

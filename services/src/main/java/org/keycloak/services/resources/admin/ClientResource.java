@@ -50,8 +50,11 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
 import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.ErrorResponseException;
-import org.keycloak.services.clientpolicy.AdminClientUpdateContext;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
+import org.keycloak.services.clientpolicy.context.AdminClientUnregisterContext;
+import org.keycloak.services.clientpolicy.context.AdminClientUpdateContext;
+import org.keycloak.services.clientpolicy.context.AdminClientUpdatedContext;
+import org.keycloak.services.clientpolicy.context.AdminClientViewContext;
 import org.keycloak.services.clientregistration.ClientRegistrationTokenUtils;
 import org.keycloak.services.clientregistration.policy.RegistrationAuth;
 import org.keycloak.services.managers.ClientManager;
@@ -77,8 +80,6 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -132,12 +133,8 @@ public class ClientResource {
         auth.clients().requireConfigure(client);
 
         try {
-            session.clientPolicy().triggerOnEvent(new AdminClientUpdateContext(rep, auth.adminAuth(), client));
-        } catch (ClientPolicyException cpe) {
-            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
-        }
+            session.clientPolicy().triggerOnEvent(new AdminClientUpdateContext(rep, client, auth.adminAuth()));
 
-        try {
             updateClientFromRep(rep, client, session);
 
             ValidationUtil.validateClient(session, client, false, r -> {
@@ -148,10 +145,14 @@ public class ClientResource {
                         Response.Status.BAD_REQUEST);
             });
 
+            session.clientPolicy().triggerOnEvent(new AdminClientUpdatedContext(rep, client, auth.adminAuth()));
+
             adminEvent.operation(OperationType.UPDATE).resourcePath(session.getContext().getUri()).representation(rep).success();
             return Response.noContent().build();
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Client already exists");
+        } catch (ClientPolicyException cpe) {
+            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
         }
     }
 
@@ -164,6 +165,12 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public ClientRepresentation getClient() {
+        try {
+            session.clientPolicy().triggerOnEvent(new AdminClientViewContext(client, auth.adminAuth()));
+        } catch (ClientPolicyException cpe) {
+            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
+        }
+
         auth.clients().requireView(client);
 
         ClientRepresentation representation = ModelToRepresentation.toRepresentation(client, session);
@@ -206,6 +213,12 @@ public class ClientResource {
 
         if (client == null) {
             throw new NotFoundException("Could not find client");
+        }
+
+        try {
+            session.clientPolicy().triggerOnEvent(new AdminClientUnregisterContext(client, auth.adminAuth()));
+        } catch (ClientPolicyException cpe) {
+            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
         }
 
         new ClientManager(new RealmManager(session)).removeClient(realm, client);
@@ -298,21 +311,14 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     @Path("default-client-scopes")
-    public List<ClientScopeRepresentation> getDefaultClientScopes() {
+    public Stream<ClientScopeRepresentation> getDefaultClientScopes() {
         return getDefaultClientScopes(true);
     }
 
-    private List<ClientScopeRepresentation> getDefaultClientScopes(boolean defaultScope) {
+    private Stream<ClientScopeRepresentation> getDefaultClientScopes(boolean defaultScope) {
         auth.clients().requireView(client);
 
-        List<ClientScopeRepresentation> defaults = new LinkedList<>();
-        for (ClientScopeModel clientScope : client.getClientScopes(defaultScope, true).values()) {
-            ClientScopeRepresentation rep = new ClientScopeRepresentation();
-            rep.setId(clientScope.getId());
-            rep.setName(clientScope.getName());
-            defaults.add(rep);
-        }
-        return defaults;
+        return client.getClientScopes(defaultScope, true).values().stream().map(ClientResource::toRepresentation);
     }
 
 
@@ -361,7 +367,7 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     @Path("optional-client-scopes")
-    public List<ClientScopeRepresentation> getOptionalClientScopes() {
+    public Stream<ClientScopeRepresentation> getOptionalClientScopes() {
         return getDefaultClientScopes(false);
     }
 
@@ -697,6 +703,13 @@ public class ClientResource {
         if (result != null) {
             rep.setLastAccess(Time.toMillis(result.getValue().getTimestamp()));
         }
+        return rep;
+    }
+
+    private static ClientScopeRepresentation toRepresentation(ClientScopeModel clientScopeModel) {
+        ClientScopeRepresentation rep = new ClientScopeRepresentation();
+        rep.setId(clientScopeModel.getId());
+        rep.setName(clientScopeModel.getName());
         return rep;
     }
 }

@@ -16,6 +16,8 @@
  */
 package org.keycloak.services.resources.account;
 
+import static org.keycloak.userprofile.profile.UserProfileContextFactory.forAccountService;
+
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.keycloak.common.ClientConnection;
@@ -39,17 +41,13 @@ import org.keycloak.representations.account.ConsentScopeRepresentation;
 import org.keycloak.representations.account.UserRepresentation;
 import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.managers.Auth;
+import org.keycloak.services.managers.UserConsentManager;
 import org.keycloak.services.managers.UserSessionManager;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.services.resources.account.resources.ResourcesService;
 import org.keycloak.services.util.ResolveRelative;
 import org.keycloak.storage.ReadOnlyException;
 import org.keycloak.theme.Theme;
-import org.keycloak.userprofile.LegacyUserProfileProviderFactory;
-import org.keycloak.userprofile.UserProfile;
-import org.keycloak.userprofile.UserProfileProvider;
-import org.keycloak.userprofile.profile.DefaultUserProfileContext;
-import org.keycloak.userprofile.profile.representations.AccountUserRepresentationUserProfile;
 import org.keycloak.userprofile.utils.UserUpdateHelper;
 import org.keycloak.userprofile.validation.UserProfileValidationResult;
 
@@ -160,9 +158,7 @@ public class AccountRestService {
 
         event.event(EventType.UPDATE_PROFILE).client(auth.getClient()).user(auth.getUser());
 
-        UserProfile updatedUser = new AccountUserRepresentationUserProfile(rep);
-        UserProfileProvider profileProvider = session.getProvider(UserProfileProvider.class, LegacyUserProfileProviderFactory.PROVIDER_ID);
-        UserProfileValidationResult result = profileProvider.validate(DefaultUserProfileContext.forAccountService(user), updatedUser);
+        UserProfileValidationResult result = forAccountService(user, rep, session).validate();
 
         if (result.hasFailureOfErrorType(Messages.READ_ONLY_USERNAME))
             return ErrorResponse.error(Messages.READ_ONLY_USERNAME, Response.Status.BAD_REQUEST);
@@ -170,9 +166,14 @@ public class AccountRestService {
             return ErrorResponse.exists(Messages.USERNAME_EXISTS);
         if (result.hasFailureOfErrorType(Messages.EMAIL_EXISTS))
             return ErrorResponse.exists(Messages.EMAIL_EXISTS);
+        if (!result.getErrors().isEmpty()) {
+            // Here should be possibility to somehow return all errors?
+            String firstErrorMessage = result.getErrors().get(0).getFailedValidations().get(0).getErrorType();
+            return ErrorResponse.error(firstErrorMessage, Response.Status.BAD_REQUEST);
+        }
 
         try {
-            UserUpdateHelper.updateAccount(realm, user, updatedUser);
+            UserUpdateHelper.updateAccount(realm, user, result.getProfile());
             event.success();
 
             return Response.noContent().build();
@@ -286,8 +287,7 @@ public class AccountRestService {
             return ErrorResponse.error(msg, Response.Status.NOT_FOUND);
         }
 
-        session.users().revokeConsentForClient(realm, user.getId(), client.getId());
-        new UserSessionManager(session).revokeOfflineToken(user, client);
+        UserConsentManager.revokeConsentToClient(session, client, user);
         event.success();
 
         return Response.noContent().build();

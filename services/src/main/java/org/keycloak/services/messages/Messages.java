@@ -54,6 +54,8 @@ public class Messages {
 
     public static final String MISSING_USERNAME = "missingUsernameMessage";
 
+    public static final String UPDATE_READ_ONLY_ATTRIBUTES_REJECTED = "updateReadOnlyAttributesRejectedMessage";
+
     public static final String MISSING_PASSWORD = "missingPasswordMessage";
 
     public static final String MISSING_TOTP = "missingTotpMessage";
@@ -75,6 +77,8 @@ public class Messages {
     public static final String EMAIL_EXISTS = "emailExistsMessage";
 
     public static final String FEDERATED_IDENTITY_EXISTS = "federatedIdentityExistsMessage";
+
+    public static final String FEDERATED_IDENTITY_UNAVAILABLE = "federatedIdentityUnavailableMessage";
 
     public static final String FEDERATED_IDENTITY_CONFIRM_LINK_MESSAGE = "federatedIdentityConfirmLinkMessage";
 

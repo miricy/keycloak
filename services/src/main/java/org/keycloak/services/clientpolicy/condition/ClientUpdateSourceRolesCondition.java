@@ -30,36 +30,22 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.representations.JsonWebToken;
-import org.keycloak.services.clientpolicy.AdminClientRegisterContext;
-import org.keycloak.services.clientpolicy.AdminClientUpdateContext;
 import org.keycloak.services.clientpolicy.ClientPolicyContext;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
 import org.keycloak.services.clientpolicy.ClientPolicyLogger;
 import org.keycloak.services.clientpolicy.ClientPolicyVote;
-import org.keycloak.services.clientpolicy.ClientUpdateContext;
-import org.keycloak.services.clientpolicy.DynamicClientRegisterContext;
-import org.keycloak.services.clientpolicy.DynamicClientUpdateContext;
+import org.keycloak.services.clientpolicy.context.AdminClientRegisterContext;
+import org.keycloak.services.clientpolicy.context.AdminClientUpdateContext;
+import org.keycloak.services.clientpolicy.context.ClientCRUDContext;
+import org.keycloak.services.clientpolicy.context.DynamicClientRegisterContext;
+import org.keycloak.services.clientpolicy.context.DynamicClientUpdateContext;
 
-public class ClientUpdateSourceRolesCondition implements ClientPolicyConditionProvider {
+public class ClientUpdateSourceRolesCondition extends AbstractClientPolicyConditionProvider {
 
     private static final Logger logger = Logger.getLogger(ClientUpdateSourceRolesCondition.class);
 
-    private final KeycloakSession session;
-    private final ComponentModel componentModel;
-
     public ClientUpdateSourceRolesCondition(KeycloakSession session, ComponentModel componentModel) {
-        this.session = session;
-        this.componentModel = componentModel;
-    }
-
-    @Override
-    public String getName() {
-        return componentModel.getName();
-    }
-
-    @Override
-    public String getProviderId() {
-        return componentModel.getProviderId();
+        super(session, componentModel);
     }
 
     @Override
@@ -67,17 +53,17 @@ public class ClientUpdateSourceRolesCondition implements ClientPolicyConditionPr
         switch (context.getEvent()) {
         case REGISTER:
             if (context instanceof AdminClientRegisterContext) {
-                return getVoteForRolesMatched(((ClientUpdateContext)context).getAuthenticatedUser());
+                return getVoteForRolesMatched(((ClientCRUDContext)context).getAuthenticatedUser());
             } else if (context instanceof DynamicClientRegisterContext) {
-                return getVoteForRolesMatched(((ClientUpdateContext)context).getToken());
+                return getVoteForRolesMatched(((ClientCRUDContext)context).getToken());
             } else {
                 throw new ClientPolicyException(OAuthErrorException.SERVER_ERROR, "unexpected context type.");
             }
         case UPDATE:
             if (context instanceof AdminClientUpdateContext) {
-                return getVoteForRolesMatched(((ClientUpdateContext)context).getAuthenticatedUser());
+                return getVoteForRolesMatched(((ClientCRUDContext)context).getAuthenticatedUser());
             } else if (context instanceof DynamicClientUpdateContext) {
-                return getVoteForRolesMatched(((ClientUpdateContext)context).getToken());
+                return getVoteForRolesMatched(((ClientCRUDContext)context).getToken());
             } else {
                 throw new ClientPolicyException(OAuthErrorException.SERVER_ERROR, "unexpected context type.");
             }
@@ -99,7 +85,7 @@ public class ClientUpdateSourceRolesCondition implements ClientPolicyConditionPr
 
     private boolean isRoleMatched(String subjectId) {
         if (subjectId == null) return false;
-        return isRolesMatched(session.users().getUserById(subjectId, session.getContext().getRealm()));
+        return isRolesMatched(session.users().getUserById(session.getContext().getRealm(), subjectId));
     }
 
     private boolean isRolesMatched(UserModel user) {

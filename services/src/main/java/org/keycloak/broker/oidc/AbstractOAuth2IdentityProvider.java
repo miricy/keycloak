@@ -250,7 +250,7 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
     }
 
     protected Response exchangeStoredToken(UriInfo uriInfo, EventBuilder event, ClientModel authorizedClient, UserSessionModel tokenUserSession, UserModel tokenSubject) {
-        FederatedIdentityModel model = session.users().getFederatedIdentity(tokenSubject, getConfig().getAlias(), authorizedClient.getRealm());
+        FederatedIdentityModel model = session.users().getFederatedIdentity(authorizedClient.getRealm(), tokenSubject, getConfig().getAlias());
         if (model == null || model.getToken() == null) {
             event.detail(Details.REASON, "requested_issuer is not linked");
             event.error(Errors.INVALID_TOKEN);
@@ -438,14 +438,16 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
         if (getConfig().getClientAuthMethod().equals(OIDCLoginProtocol.CLIENT_SECRET_JWT)) {
             try (VaultStringSecret vaultStringSecret = session.vault().getStringSecret(getConfig().getClientSecret())) {
                 KeyWrapper key = new KeyWrapper();
-                key.setAlgorithm(Algorithm.HS256);
+                String alg = getConfig().getClientAssertionSigningAlg() != null ? getConfig().getClientAssertionSigningAlg() : Algorithm.HS256;
+                key.setAlgorithm(alg);
                 byte[] decodedSecret = vaultStringSecret.get().orElse(getConfig().getClientSecret()).getBytes();
-                SecretKey secret = new SecretKeySpec(decodedSecret, 0, decodedSecret.length, Algorithm.HS256);
+                SecretKey secret = new SecretKeySpec(decodedSecret, 0, decodedSecret.length, alg);
                 key.setSecretKey(secret);
                 return new MacSignatureSignerContext(key);
             }
         }
-        return new AsymmetricSignatureProvider(session, Algorithm.RS256).signer();
+        String alg = getConfig().getClientAssertionSigningAlg() != null ? getConfig().getClientAssertionSigningAlg() : Algorithm.RS256;
+        return new AsymmetricSignatureProvider(session, alg).signer();
     }
 
     protected class Endpoint {
@@ -479,18 +481,20 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
                 return errorIdentityProviderLogin(Messages.IDENTITY_PROVIDER_MISSING_STATE_ERROR);
             }
 
-            if (error != null) {
-                logger.error(error + " for broker login " + getConfig().getProviderId());
-                if (error.equals(ACCESS_DENIED)) {
-                    return callback.cancelled(state);
-                } else if (error.equals(OAuthErrorException.LOGIN_REQUIRED) || error.equals(OAuthErrorException.INTERACTION_REQUIRED)) {
-                    return callback.error(state, error);
-                } else {
-                    return callback.error(state, Messages.IDENTITY_PROVIDER_UNEXPECTED_ERROR);
-                }
-            }
-
             try {
+                AuthenticationSessionModel authSession = this.callback.getAndVerifyAuthenticationSession(state);
+                session.getContext().setAuthenticationSession(authSession);
+
+                if (error != null) {
+                    logger.error(error + " for broker login " + getConfig().getProviderId());
+                    if (error.equals(ACCESS_DENIED)) {
+                        return callback.cancelled();
+                    } else if (error.equals(OAuthErrorException.LOGIN_REQUIRED) || error.equals(OAuthErrorException.INTERACTION_REQUIRED)) {
+                        return callback.error(error);
+                    } else {
+                        return callback.error(Messages.IDENTITY_PROVIDER_UNEXPECTED_ERROR);
+                    }
+                }
 
                 if (authorizationCode != null) {
                     String response = generateTokenRequest(authorizationCode).asString();
@@ -505,7 +509,7 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
 
                     federatedIdentity.setIdpConfig(getConfig());
                     federatedIdentity.setIdp(AbstractOAuth2IdentityProvider.this);
-                    federatedIdentity.setCode(state);
+                    federatedIdentity.setAuthenticationSession(authSession);
 
                     return callback.authenticated(federatedIdentity);
                 }
@@ -518,7 +522,7 @@ public abstract class AbstractOAuth2IdentityProvider<C extends OAuth2IdentityPro
         }
 
         private Response errorIdentityProviderLogin(String message) {
-            event.event(EventType.LOGIN);
+            event.event(EventType.IDENTITY_PROVIDER_LOGIN);
             event.error(Errors.IDENTITY_PROVIDER_LOGIN_FAILURE);
             return ErrorPage.error(session, null, Response.Status.BAD_GATEWAY, message);
         }

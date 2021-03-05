@@ -35,6 +35,7 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.KeycloakTransaction;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.ScopeContainerModel;
 import org.keycloak.models.UserCredentialModel;
@@ -163,13 +164,28 @@ public final class KeycloakModelUtils {
         return UUID.randomUUID().toString();
     }
 
-    public static ClientModel createClient(RealmModel realm, String name) {
-        ClientModel app = realm.addClient(name);
-        app.setClientAuthenticatorType(getDefaultClientAuthenticatorType());
-        generateSecret(app);
-        app.setFullScopeAllowed(true);
+    public static ClientModel createManagementClient(RealmModel realm, String name) {
+        ClientModel client = createClient(realm, name);
 
-        return app;
+        client.setBearerOnly(true);
+
+        return client;
+    }
+
+    public static ClientModel createPublicClient(RealmModel realm, String name) {
+        ClientModel client = createClient(realm, name);
+
+        client.setPublicClient(true);
+
+        return client;
+    }
+
+    private static ClientModel createClient(RealmModel realm, String name) {
+        ClientModel client = realm.addClient(name);
+
+        client.setClientAuthenticatorType(getDefaultClientAuthenticatorType());
+
+        return client;
     }
 
     /**
@@ -205,13 +221,13 @@ public final class KeycloakModelUtils {
      */
     public static UserModel findUserByNameOrEmail(KeycloakSession session, RealmModel realm, String username) {
         if (realm.isLoginWithEmailAllowed() && username.indexOf('@') != -1) {
-            UserModel user = session.users().getUserByEmail(username, realm);
+            UserModel user = session.users().getUserByEmail(realm, username);
             if (user != null) {
                 return user;
             }
         }
 
-        return session.users().getUserByUsername(username, realm);
+        return session.users().getUserByUsername(realm, username);
     }
 
     /**
@@ -689,6 +705,14 @@ public final class KeycloakModelUtils {
         } else {
             return provider.getAlias();
         }
+    }
+
+    /**
+     * @return true if implementation of realmProvider is "jpa" . Which is always the case in standard Keycloak installations.
+     */
+    public static boolean isRealmProviderJpa(KeycloakSession session) {
+        Set<String> providerIds = session.listProviderIds(RealmProvider.class);
+        return providerIds != null && providerIds.size() == 1 && providerIds.iterator().next().equals("jpa");
     }
 
 }

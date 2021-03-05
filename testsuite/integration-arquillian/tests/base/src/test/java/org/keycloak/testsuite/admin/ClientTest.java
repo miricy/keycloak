@@ -28,6 +28,7 @@ import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.AccountRoles;
 import org.keycloak.models.Constants;
 import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
+import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolFactory;
 import org.keycloak.representations.adapters.action.GlobalRequestResult;
@@ -106,7 +107,9 @@ public class ClientTest extends AbstractAdminTest {
     public void createClientVerify() {
         String id = createClient().getId();
 
-        assertNotNull(realm.clients().get(id));
+        ClientResource client = realm.clients().get(id);
+        assertNotNull(client);
+        assertNull(client.toRepresentation().getSecret());
         Assert.assertNames(realm.clients().findAll(), "account", "account-console", "realm-management", "security-admin-console", "broker", "my-app", Constants.ADMIN_CLI_CLIENT_ID);
     }
 
@@ -383,6 +386,13 @@ public class ClientTest extends AbstractAdminTest {
 
         storedClient = realm.clients().get(client.getId()).toRepresentation();
         assertClient(client, storedClient);
+
+        storedClient.getAttributes().put(OIDCConfigAttributes.BACKCHANNEL_LOGOUT_URL, "");
+
+        realm.clients().get(storedClient.getId()).update(storedClient);
+        storedClient = realm.clients().get(client.getId()).toRepresentation();
+
+        assertFalse(storedClient.getAttributes().containsKey(OIDCConfigAttributes.BACKCHANNEL_LOGOUT_URL));
     }
 
     @Test

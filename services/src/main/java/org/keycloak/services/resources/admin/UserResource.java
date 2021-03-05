@@ -65,6 +65,7 @@ import org.keycloak.services.ForbiddenException;
 import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.BruteForceProtector;
+import org.keycloak.services.managers.UserConsentManager;
 import org.keycloak.services.managers.UserSessionManager;
 import org.keycloak.services.resources.LoginActionsService;
 import org.keycloak.services.resources.account.AccountFormService;
@@ -72,7 +73,9 @@ import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluato
 import org.keycloak.services.validation.Validation;
 import org.keycloak.storage.ReadOnlyException;
 import org.keycloak.userprofile.utils.UserUpdateHelper;
-import org.keycloak.userprofile.profile.representations.UserRepresentationUserProfile;
+import org.keycloak.userprofile.validation.AttributeValidationResult;
+import org.keycloak.userprofile.validation.UserProfileValidationResult;
+import org.keycloak.userprofile.validation.ValidationResult;
 import org.keycloak.utils.ProfileHelper;
 
 import javax.ws.rs.BadRequestException;
@@ -99,7 +102,6 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +114,7 @@ import java.util.stream.Stream;
 
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_ID;
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_USERNAME;
+import static org.keycloak.userprofile.profile.UserProfileContextFactory.forUserResource;
 
 /**
  * Base resource for managing users
@@ -166,6 +169,10 @@ public class UserResource {
                 }
             }
 
+            Response response = validateUserProfile(user, rep, session);
+            if (response != null) {
+                return response;
+            }
             updateUserFromRep(user, rep, session, true);
             RepresentationToModel.createCredentials(rep, session, realm, user, true);
             adminEvent.operation(OperationType.UPDATE).resourcePath(session.getContext().getUri()).representation(rep).success();
@@ -189,9 +196,25 @@ public class UserResource {
         }
     }
 
-    public static void updateUserFromRep(UserModel user, UserRepresentation rep, KeycloakSession session, boolean removeMissingRequiredActions) {
+    public static Response validateUserProfile(UserModel user, UserRepresentation rep, KeycloakSession session) {
+        UserProfileValidationResult result = forUserResource(user, rep, session).validate();
+        if (!result.getErrors().isEmpty()) {
+            for (AttributeValidationResult attrValidation : result.getErrors()) {
+                StringBuilder s = new StringBuilder("Failed to update attribute " + attrValidation.getField() + ": ");
+                for (ValidationResult valResult : attrValidation.getFailedValidations()) {
+                    s.append(valResult.getErrorType() + ", ");
+                }
+                logger.warn(s);
+            }
+            return ErrorResponse.error("Could not update user! See server log for more details", Response.Status.BAD_REQUEST);
+        } else {
+            return null;
+        }
+    }
 
-        UserUpdateHelper.updateUserResource(session.getContext().getRealm(), user, new UserRepresentationUserProfile(rep));
+    public static void updateUserFromRep(UserModel user, UserRepresentation rep, KeycloakSession session, boolean isUpdateExistingUser) {
+        boolean removeMissingRequiredActions = isUpdateExistingUser;
+        UserUpdateHelper.updateUserResource(session, user, rep, rep.getAttributes() != null);
 
         if (rep.isEnabled() != null) user.setEnabled(rep.isEnabled());
         if (rep.isEmailVerified() != null) user.setEmailVerified(rep.isEmailVerified());
@@ -201,17 +224,17 @@ public class UserResource {
         List<String> reqActions = rep.getRequiredActions();
 
         if (reqActions != null) {
-            Set<String> allActions = new HashSet<>();
-            for (ProviderFactory factory : session.getKeycloakSessionFactory().getProviderFactories(RequiredActionProvider.class)) {
-                allActions.add(factory.getId());
-            }
-            for (String action : allActions) {
-                if (reqActions.contains(action)) {
-                    user.addRequiredAction(action);
-                } else if (removeMissingRequiredActions) {
-                    user.removeRequiredAction(action);
-                }
-            }
+            session.getKeycloakSessionFactory()
+                    .getProviderFactoriesStream(RequiredActionProvider.class)
+                    .map(ProviderFactory::getId)
+                    .distinct()
+                    .forEach(action -> {
+                        if (reqActions.contains(action)) {
+                            user.addRequiredAction(action);
+                        } else if (removeMissingRequiredActions) {
+                            user.removeRequiredAction(action);
+                        }
+                    });
         }
 
         List<CredentialRepresentation> credentials = rep.getCredentials();
@@ -350,7 +373,7 @@ public class UserResource {
 
     private Stream<FederatedIdentityRepresentation> getFederatedIdentities(UserModel user) {
         Set<String> idps = realm.getIdentityProvidersStream().map(IdentityProviderModel::getAlias).collect(Collectors.toSet());
-        return session.users().getFederatedIdentitiesStream(user, realm)
+        return session.users().getFederatedIdentitiesStream(realm, user)
                 .filter(identity -> idps.contains(identity.getIdentityProvider()))
                 .map(ModelToRepresentation::toRepresentation);
     }
@@ -367,7 +390,7 @@ public class UserResource {
     @NoCache
     public Response addFederatedIdentity(final @PathParam("provider") String provider, FederatedIdentityRepresentation rep) {
         auth.users().requireManage(user);
-        if (session.users().getFederatedIdentity(user, provider, realm) != null) {
+        if (session.users().getFederatedIdentity(realm, user, provider) != null) {
             return ErrorResponse.exists("User is already linked with provider");
         }
 
@@ -455,15 +478,9 @@ public class UserResource {
         if (client == null) {
             throw new NotFoundException("Client not found");
         }
-        boolean revokedConsent = session.users().revokeConsentForClient(realm, user.getId(), client.getId());
-        boolean revokedOfflineToken = new UserSessionManager(session).revokeOfflineToken(user, client);
+        boolean revokedConsent = UserConsentManager.revokeConsentToClient(session, client, user);
 
-        if (revokedConsent) {
-            // Logout clientSessions for this user and client
-            AuthenticationManager.backchannelLogoutUserFromClient(session, realm, user, client, session.getContext().getUri(), headers);
-        }
-
-        if (!revokedConsent && !revokedOfflineToken) {
+        if (!revokedConsent) {
             throw new NotFoundException("Consent nor offline token not found");
         }
         adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).success();

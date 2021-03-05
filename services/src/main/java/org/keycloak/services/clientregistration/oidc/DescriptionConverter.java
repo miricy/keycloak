@@ -64,6 +64,7 @@ public class DescriptionConverter {
         client.setName(clientOIDC.getClientName());
         client.setRedirectUris(clientOIDC.getRedirectUris());
         client.setBaseUrl(clientOIDC.getClientUri());
+        client.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
         String scopeParam = clientOIDC.getScope();
         if (scopeParam != null) client.setOptionalClientScopes(new ArrayList<>(Arrays.asList(scopeParam.split(" "))));
@@ -140,6 +141,10 @@ public class DescriptionConverter {
 
         if (clientOIDC.getIdTokenEncryptedResponseEnc() != null) {
             configWrapper.setIdTokenEncryptedResponseEnc(clientOIDC.getIdTokenEncryptedResponseEnc());
+        }
+
+        if (clientOIDC.getRequestUris() != null) {
+            configWrapper.setRequestUris(clientOIDC.getRequestUris());
         }
 
         configWrapper.setTokenEndpointAuthSigningAlg(clientOIDC.getTokenEndpointAuthSigningAlg());
@@ -252,6 +257,9 @@ public class DescriptionConverter {
         }
         if (config.getIdTokenEncryptedResponseEnc() != null) {
             response.setIdTokenEncryptedResponseEnc(config.getIdTokenEncryptedResponseEnc());
+        }
+        if (config.getRequestUris() != null) {
+            response.setRequestUris(config.getRequestUris());
         }
         if (config.getTokenEndpointAuthSigningAlg() != null) {
             response.setTokenEndpointAuthSigningAlg(config.getTokenEndpointAuthSigningAlg());

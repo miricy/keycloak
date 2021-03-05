@@ -17,34 +17,16 @@
 
 package org.keycloak.services.clientpolicy.condition;
 
-import java.util.Collections;
-import java.util.List;
-
-import org.keycloak.Config.Scope;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.provider.ProviderConfigProperty;
 
-public class AnyClientConditionFactory implements ClientPolicyConditionProviderFactory {
+public class AnyClientConditionFactory extends AbstractClientPolicyConditionProviderFactory {
 
     public static final String PROVIDER_ID = "anyclient-condition";
 
     @Override
     public ClientPolicyConditionProvider create(KeycloakSession session, ComponentModel model) {
         return new AnyClientCondition(session, model);
-    }
-
-    @Override
-    public void init(Scope config) {
-    }
-
-    @Override
-    public void postInit(KeycloakSessionFactory factory) {
-    }
-
-    @Override
-    public void close() {
     }
 
     @Override
@@ -56,10 +38,4 @@ public class AnyClientConditionFactory implements ClientPolicyConditionProviderF
     public String getHelpText() {
         return "The condition is satisfied by any client on any event.";
     }
-
-    @Override
-    public List<ProviderConfigProperty> getConfigProperties() {
-        return Collections.emptyList();
-    }
-
 }
