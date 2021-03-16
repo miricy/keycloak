@@ -62,6 +62,7 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.AuthenticationFlowResolver;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
+import org.keycloak.protocol.oidc.grants.device.DeviceGrantType;
 import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.TokenManager;
@@ -148,7 +149,7 @@ public class TokenEndpoint {
     private Map<String, String> clientAuthAttributes;
 
     private enum Action {
-        AUTHORIZATION_CODE, REFRESH_TOKEN, PASSWORD, CLIENT_CREDENTIALS, TOKEN_EXCHANGE, PERMISSION
+        AUTHORIZATION_CODE, REFRESH_TOKEN, PASSWORD, CLIENT_CREDENTIALS, TOKEN_EXCHANGE, PERMISSION, OAUTH2_DEVICE_CODE
     }
 
     // https://tools.ietf.org/html/rfc7636#section-4.2
@@ -228,6 +229,8 @@ public class TokenEndpoint {
                 return tokenExchange();
             case PERMISSION:
                 return permissionGrant();
+            case OAUTH2_DEVICE_CODE:
+                return oauth2DeviceCodeToToken();
         }
 
         throw new RuntimeException("Unknown action " + action);
@@ -263,7 +266,7 @@ public class TokenEndpoint {
     }
 
     private void checkClient() {
-        AuthorizeClientUtil.ClientAuthResult clientAuth = AuthorizeClientUtil.authorizeClient(session, event);
+        AuthorizeClientUtil.ClientAuthResult clientAuth = AuthorizeClientUtil.authorizeClient(session, event, cors);
         client = clientAuth.getClient();
         clientAuthAttributes = clientAuth.getClientAuthAttributes();
 
@@ -299,6 +302,9 @@ public class TokenEndpoint {
         } else if (grantType.equals(OAuth2Constants.UMA_GRANT_TYPE)) {
             event.event(EventType.PERMISSION_TOKEN);
             action = Action.PERMISSION;
+        } else if (grantType.equals(OAuth2Constants.DEVICE_CODE_GRANT_TYPE)) {
+            event.event(EventType.OAUTH2_DEVICE_CODE_TO_TOKEN);
+            action = Action.OAUTH2_DEVICE_CODE;
         } else {
             throw new CorsErrorResponseException(cors, OAuthErrorException.UNSUPPORTED_GRANT_TYPE,
                 "Unsupported " + OIDCLoginProtocol.GRANT_TYPE_PARAM, Response.Status.BAD_REQUEST);
@@ -443,11 +449,16 @@ public class TokenEndpoint {
         // Set nonce as an attribute in the ClientSessionContext. Will be used for the token generation
         clientSessionCtx.setAttribute(OIDCLoginProtocol.NONCE_PARAM, codeData.getNonce());
 
+        return codeOrDeviceCodeToToken(user, userSession, clientSessionCtx, scopeParam, true);
+    }
+
+    public Response codeOrDeviceCodeToToken(UserModel user, UserSessionModel userSession, ClientSessionContext clientSessionCtx,
+        String scopeParam, boolean code) {
         AccessToken token = tokenManager.createClientAccessToken(session, realm, client, user, userSession, clientSessionCtx);
 
-        TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager.responseBuilder(realm, client, event, session, userSession, clientSessionCtx)
-                .accessToken(token)
-                .generateRefreshToken();
+        TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager
+            .responseBuilder(realm, client, event, session, userSession, clientSessionCtx).accessToken(token)
+            .generateRefreshToken();
 
         // KEYCLOAK-6771 Certificate Bound Token
         // https://tools.ietf.org/html/draft-ietf-oauth-mtls-08#section-3
@@ -458,25 +469,30 @@ public class TokenEndpoint {
                 responseBuilder.getRefreshToken().setCertConf(certConf);
             } else {
                 event.error(Errors.INVALID_REQUEST);
-                throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST, "Client Certification missing for MTLS HoK Token Binding", Response.Status.BAD_REQUEST);
+                throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST,
+                    "Client Certification missing for MTLS HoK Token Binding", Response.Status.BAD_REQUEST);
             }
         }
 
         if (TokenUtil.isOIDCRequest(scopeParam)) {
             responseBuilder.generateIDToken().generateAccessTokenHash();
         }
-        
+
         AccessTokenResponse res = null;
-        try {
-            res = responseBuilder.build();
-        } catch (RuntimeException re) {
-            if ("can not get encryption KEK".equals(re.getMessage())) {
-                throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST, "can not get encryption KEK", Response.Status.BAD_REQUEST);
-            } else {
-                throw re;
+        if (code) {
+            try {
+                res = responseBuilder.build();
+            } catch (RuntimeException re) {
+                if ("can not get encryption KEK".equals(re.getMessage())) {
+                    throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST,
+                        "can not get encryption KEK", Response.Status.BAD_REQUEST);
+                } else {
+                    throw re;
+                }
             }
+        } else {
+            res = responseBuilder.build();
         }
-        
         event.success();
 
         return cors.builder(Response.ok(res).type(MediaType.APPLICATION_JSON_TYPE)).build();
@@ -1362,6 +1378,11 @@ public class TokenEndpoint {
         event.success();
 
         return authorizationResponse;
+    }
+
+    public Response oauth2DeviceCodeToToken() {
+        DeviceGrantType deviceGrantType = new DeviceGrantType(formParams, client, session, this, realm, event, cors);
+        return deviceGrantType.oauth2DeviceFlow();
     }
 
     // https://tools.ietf.org/html/rfc7636#section-4.1

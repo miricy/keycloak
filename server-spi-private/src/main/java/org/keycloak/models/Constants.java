@@ -118,4 +118,5 @@ public final class Constants {
      * If {@code #STORAGE_BATCH_ENABLED} is set, indicates the batch size.
      */
     public static final String STORAGE_BATCH_SIZE = "org.keycloak.storage.batch_size";
+
 }

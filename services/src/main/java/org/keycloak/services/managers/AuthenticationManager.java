@@ -89,7 +89,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -101,6 +100,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.keycloak.common.util.ServerCookie.SameSiteAttributeValue;
+import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.isOAuth2DeviceVerificationFlow;
 import static org.keycloak.services.util.CookieHelper.getCookie;
 
 /**
@@ -572,7 +572,7 @@ public class AuthenticationManager {
             UserModel user = userSession.getUser();
             logger.debugv("Logging out: {0} ({1})", user.getUsername(), userSession.getId());
         }
-        
+
         if (userSession.getState() != UserSessionModel.State.LOGGING_OUT) {
             userSession.setState(UserSessionModel.State.LOGGING_OUT);
         }
@@ -925,7 +925,7 @@ public class AuthenticationManager {
         String actionTokenKeyToInvalidate = authSession.getAuthNote(INVALIDATE_ACTION_TOKEN);
         if (actionTokenKeyToInvalidate != null) {
             ActionTokenKeyModel actionTokenKey = DefaultActionTokenKey.from(actionTokenKeyToInvalidate);
-            
+
             if (actionTokenKey != null) {
                 ActionTokenStoreProvider actionTokenStore = session.getProvider(ActionTokenStoreProvider.class);
                 actionTokenStore.put(actionTokenKey, null); // Token is invalidated
@@ -983,7 +983,7 @@ public class AuthenticationManager {
             return kcAction;
         }
 
-        if (client.isConsentRequired()) {
+        if (client.isConsentRequired() || isOAuth2DeviceVerificationFlow(authSession)) {
 
             UserConsentModel grantedConsent = getEffectiveGrantedConsent(session, authSession);
 
@@ -1004,6 +1004,13 @@ public class AuthenticationManager {
 
 
     private static UserConsentModel getEffectiveGrantedConsent(KeycloakSession session, AuthenticationSessionModel authSession) {
+        // https://tools.ietf.org/html/draft-ietf-oauth-device-flow-15#section-5.4
+        // The spec says "The authorization server SHOULD display information about the device",
+        // so we ignore existing persistent consent to display the consent screen always.
+        if (isOAuth2DeviceVerificationFlow(authSession)) {
+            return null;
+        }
+
         // If prompt=consent, we ignore existing persistent consent
         String prompt = authSession.getClientNote(OIDCLoginProtocol.PROMPT_PARAM);
         if (TokenUtil.hasPrompt(prompt, OIDCLoginProtocol.PROMPT_VALUE_CONSENT)) {
@@ -1038,7 +1045,10 @@ public class AuthenticationManager {
         action = executionActions(session, authSession, request, event, realm, user, authSession.getRequiredActions().stream());
         if (action != null) return action;
 
-        if (client.isConsentRequired()) {
+        // https://tools.ietf.org/html/draft-ietf-oauth-device-flow-15#section-5.4
+        // The spec says "The authorization server SHOULD display information about the device",
+        // so the consent is required when running a verification flow of OAuth 2.0 Device Authorization Grant.
+        if (client.isConsentRequired() || isOAuth2DeviceVerificationFlow(authSession)) {
 
             UserConsentModel grantedConsent = getEffectiveGrantedConsent(session, authSession);
 

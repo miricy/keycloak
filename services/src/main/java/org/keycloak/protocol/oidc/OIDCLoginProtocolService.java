@@ -115,6 +115,11 @@ public class OIDCLoginProtocolService {
         return uriBuilder.path(OIDCLoginProtocolService.class, "auth");
     }
 
+    public static UriBuilder delegatedUrl(UriInfo uriInfo) {
+        UriBuilder uriBuilder = tokenServiceBaseUrl(uriInfo);
+        return uriBuilder.path(OIDCLoginProtocolService.class, "kcinitBrowserLoginComplete");
+    }
+
     public static UriBuilder tokenUrl(UriBuilder baseUriBuilder) {
         UriBuilder uriBuilder = tokenServiceBaseUrl(baseUriBuilder);
         return uriBuilder.path(OIDCLoginProtocolService.class, "token");
