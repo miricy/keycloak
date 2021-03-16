@@ -26,6 +26,7 @@ import org.keycloak.broker.oidc.mappers.AbstractJsonUserAttributeMapper;
 public class BaiduUserAttributeMapper extends AbstractJsonUserAttributeMapper {
 
 	private static final String[] cp = new String[] { BaiduIdentityProviderFactory.PROVIDER_ID };
+	public static final String PROVIDER_ID = "baidu-user-attribute-mapper";
 
 	@Override
 	public String[] getCompatibleProviders() {
@@ -34,7 +35,7 @@ public class BaiduUserAttributeMapper extends AbstractJsonUserAttributeMapper {
 
 	@Override
 	public String getId() {
-		return "baidu-user-attribute-mapper";
+		return PROVIDER_ID;
 	}
 
 }

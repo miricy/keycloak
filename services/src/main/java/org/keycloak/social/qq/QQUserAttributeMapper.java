@@ -26,6 +26,7 @@ import org.keycloak.broker.oidc.mappers.AbstractJsonUserAttributeMapper;
 public class QQUserAttributeMapper extends AbstractJsonUserAttributeMapper {
 
 	private static final String[] cp = new String[] { QQIdentityProviderFactory.PROVIDER_ID };
+	public static final String PROVIDER_ID = "qq-user-attribute-mapper";
 
 	@Override
 	public String[] getCompatibleProviders() {
@@ -34,7 +35,7 @@ public class QQUserAttributeMapper extends AbstractJsonUserAttributeMapper {
 
 	@Override
 	public String getId() {
-		return "qq-user-attribute-mapper";
+		return PROVIDER_ID;
 	}
 
 }
