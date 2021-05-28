@@ -19,6 +19,7 @@ package org.keycloak.protocol.oidc;
 
 import org.keycloak.authentication.authenticators.client.X509ClientAuthenticator;
 import org.keycloak.jose.jws.Algorithm;
+import org.keycloak.models.CibaConfig;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.representations.idm.ClientRepresentation;
@@ -129,6 +130,16 @@ public class OIDCAdvancedConfigWrapper {
     public void setUseMtlsHoKToken(boolean useUtlsHokToken) {
         String val = String.valueOf(useUtlsHokToken);
         setAttribute(OIDCConfigAttributes.USE_MTLS_HOK_TOKEN, val);
+    }
+
+    public boolean isUseRefreshToken() {
+        String useRefreshToken = getAttribute(OIDCConfigAttributes.USE_REFRESH_TOKEN, "true");
+        return Boolean.parseBoolean(useRefreshToken);
+    }
+
+    public void setUseRefreshToken(boolean useRefreshToken) {
+        String val = String.valueOf(useRefreshToken);
+        setAttribute(OIDCConfigAttributes.USE_REFRESH_TOKEN, val);
     }
 
     /**

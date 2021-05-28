@@ -17,35 +17,26 @@
 package org.keycloak.models.map.client;
 
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.protocol.oidc.OIDCLoginProtocol;
-import com.google.common.base.Functions;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  *
  * @author hmlnarik
  */
-public abstract class MapClientAdapter extends AbstractClientModel<MapClientEntity> implements ClientModel {
+public abstract class MapClientAdapter<K> extends AbstractClientModel<MapClientEntity<K>> implements ClientModel {
 
-    public MapClientAdapter(KeycloakSession session, RealmModel realm, MapClientEntity entity) {
+    public MapClientAdapter(KeycloakSession session, RealmModel realm, MapClientEntity<K> entity) {
         super(session, realm, entity);
-    }
-
-    @Override
-    public String getId() {
-        return entity.getId().toString();
     }
 
     @Override
@@ -241,6 +232,7 @@ public abstract class MapClientAdapter extends AbstractClientModel<MapClientEnti
     @Override
     public void setProtocol(String protocol) {
         entity.setProtocol(protocol);
+        session.getKeycloakSessionFactory().publish((ClientModel.ClientProtocolUpdatedEvent) () -> MapClientAdapter.this);
     }
 
     @Override
@@ -383,38 +375,6 @@ public abstract class MapClientAdapter extends AbstractClientModel<MapClientEnti
     @Override
     public void setNotBefore(int notBefore) {
         entity.setNotBefore(notBefore);
-    }
-
-    /*************** Client scopes ****************/
-
-    @Override
-    public void addClientScope(ClientScopeModel clientScope, boolean defaultScope) {
-        final String id = clientScope == null ? null : clientScope.getId();
-        if (id != null) {
-            entity.addClientScope(id, defaultScope);
-        }
-    }
-
-    @Override
-    public void removeClientScope(ClientScopeModel clientScope) {
-        final String id = clientScope == null ? null : clientScope.getId();
-        if (id != null) {
-            entity.removeClientScope(id);
-        }
-    }
-
-    @Override
-    public Map<String, ClientScopeModel> getClientScopes(boolean defaultScope, boolean filterByProtocol) {
-        Stream<ClientScopeModel> res = this.entity.getClientScopes(defaultScope)
-          .map(realm::getClientScopeById)
-          .filter(Objects::nonNull);
-
-        if (filterByProtocol) {
-            String clientProtocol = getProtocol() == null ? OIDCLoginProtocol.LOGIN_PROTOCOL : getProtocol();
-            res = res.filter(cs -> Objects.equals(cs.getProtocol(), clientProtocol));
-        }
-
-        return res.collect(Collectors.toMap(ClientScopeModel::getName, Functions.identity()));
     }
 
     /*************** Scopes mappings ****************/

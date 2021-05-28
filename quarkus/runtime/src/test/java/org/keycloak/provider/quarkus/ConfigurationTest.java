@@ -180,6 +180,14 @@ public class ConfigurationTest {
     }
 
     @Test
+    public void testDatabaseUrlProperties() {
+        System.setProperty("kc.config.args", "--db=mariadb,--db-url=jdbc:mariadb:aurora://foo/bar?a=1&b=2");
+        SmallRyeConfig config = createConfig();
+        assertEquals(MariaDBDialect.class.getName(), config.getConfigValue("quarkus.hibernate-orm.dialect").getValue());
+        assertEquals("jdbc:mariadb:aurora://foo/bar?a=1&b=2", config.getConfigValue("quarkus.datasource.jdbc.url").getValue());
+    }
+
+    @Test
     public void testDatabaseDefaults() {
         System.setProperty("kc.config.args", "--db=h2-file");
         SmallRyeConfig config = createConfig();
@@ -232,15 +240,18 @@ public class ConfigurationTest {
     @Test
     public void testClusterConfig() {
         // Cluster enabled by default, but disabled for the "dev" profile
-        Assert.assertEquals("cluster-default.xml", initConfig("connectionsInfinispan", "default").get("configFile"));
+        Assert.assertEquals("cluster-default.xml", initConfig("connectionsInfinispan", "quarkus").get("configFile"));
 
         // If explicitly set, then it is always used regardless of the profile
         System.clearProperty("kc.profile");
         System.setProperty("kc.config.args", "--cluster=foo");
 
-        Assert.assertEquals("cluster-foo.xml", initConfig("connectionsInfinispan", "default").get("configFile"));
+        Assert.assertEquals("cluster-foo.xml", initConfig("connectionsInfinispan", "quarkus").get("configFile"));
         System.setProperty("kc.profile", "dev");
-        Assert.assertEquals("cluster-foo.xml", initConfig("connectionsInfinispan", "default").get("configFile"));
+        Assert.assertEquals("cluster-foo.xml", initConfig("connectionsInfinispan", "quarkus").get("configFile"));
+
+        System.setProperty("kc.config.args", "--cluster-stack=foo");
+        Assert.assertEquals("foo", initConfig("connectionsInfinispan", "quarkus").get("stack"));
     }
 
     private Config.Scope initConfig(String... scope) {

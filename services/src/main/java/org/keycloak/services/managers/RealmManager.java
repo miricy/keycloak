@@ -17,6 +17,7 @@
 package org.keycloak.services.managers;
 
 import org.keycloak.Config;
+import org.keycloak.common.Profile;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.migration.MigrationModelManager;
 import org.keycloak.models.AccountRoles;
@@ -124,6 +125,7 @@ public class RealmManager {
         createDefaultClientScopes(realm);
         setupAuthorizationServices(realm);
         setupClientRegistrations(realm);
+        session.clientPolicy().setupClientPoliciesOnCreatedRealm(realm);
 
         fireRealmPostCreate(realm);
 
@@ -598,6 +600,8 @@ public class RealmManager {
             MigrationModelManager.migrateImport(session, realm, rep, skipUserDependent);
         }
 
+        session.clientPolicy().updateRealmModelFromRepresentation(realm, rep);
+
         fireRealmPostCreate(realm);
 
         return realm;
@@ -752,7 +756,7 @@ public class RealmManager {
                     }
                 }
 
-                if (Boolean.TRUE.equals(client.getAuthorizationServicesEnabled())) {
+                if (Profile.isFeatureEnabled(Profile.Feature.AUTHORIZATION) && Boolean.TRUE.equals(client.getAuthorizationServicesEnabled())) {
                     // just create the default roles if the service account was missing in the import
                     RepresentationToModel.createResourceServer(clientModel, session, serviceAccount == null);
                     RepresentationToModel.importAuthorizationSettings(client, clientModel, session);

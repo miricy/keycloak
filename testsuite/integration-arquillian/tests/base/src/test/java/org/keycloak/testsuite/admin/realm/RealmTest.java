@@ -25,11 +25,13 @@ import org.junit.rules.ExpectedException;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.common.Profile;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.EventType;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.events.log.JBossLoggingEventListenerProviderFactory;
+import org.keycloak.models.CibaConfig;
 import org.keycloak.models.Constants;
 import org.keycloak.models.OAuth2DeviceConfig;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -46,6 +48,7 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.AssertEvents;
+import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.AbstractAdminTest;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
@@ -179,6 +182,12 @@ public class RealmTest extends AbstractAdminTest {
 
         try {
             RealmRepresentation rep2 = adminClient.realm("attributes").toRepresentation();
+            if (rep2.getAttributes() != null) {
+                Arrays.asList(CibaConfig.CIBA_BACKCHANNEL_TOKEN_DELIVERY_MODE,
+                        CibaConfig.CIBA_EXPIRES_IN,
+                        CibaConfig.CIBA_INTERVAL,
+                        CibaConfig.CIBA_AUTH_REQUESTED_USER_HINT).stream().forEach(i -> rep2.getAttributes().remove(i));
+            }
 
             Map<String, String> attributes = rep2.getAttributes();
             assertTrue("Attributes expected to be present oauth2DeviceCodeLifespan, oauth2DevicePollingInterval, found: " + String.join(", ", attributes.keySet()),
@@ -432,7 +441,11 @@ public class RealmTest extends AbstractAdminTest {
         assertEquals(Boolean.TRUE, rep.isRegistrationAllowed());
         assertEquals(Boolean.TRUE, rep.isRegistrationEmailAsUsername());
         assertEquals(Boolean.TRUE, rep.isEditUsernameAllowed());
-        assertEquals(Boolean.TRUE, rep.isUserManagedAccessAllowed());
+        if (ProfileAssume.isFeatureEnabled(Profile.Feature.AUTHORIZATION)) {
+            assertEquals(Boolean.TRUE, rep.isUserManagedAccessAllowed());
+        } else {
+            assertEquals(Boolean.FALSE, rep.isUserManagedAccessAllowed());
+        }
 
         // second change
         rep.setRegistrationAllowed(false);
@@ -582,8 +595,9 @@ public class RealmTest extends AbstractAdminTest {
 
         ClientRepresentation converted = realm.convertClientDescription(description);
         assertEquals("loadbalancer-9.siroe.com", converted.getClientId());
-        assertEquals(1, converted.getRedirectUris().size());
+        assertEquals(2, converted.getRedirectUris().size());
         assertEquals("https://LoadBalancer-9.siroe.com:3443/federation/Consumer/metaAlias/sp", converted.getRedirectUris().get(0));
+        assertEquals("https://LoadBalancer-9.siroe.com:3443/federation/Consumer/metaAlias/sp", converted.getRedirectUris().get(1));
     }
 
     public static void assertRealm(RealmRepresentation realm, RealmRepresentation storedRealm) {
@@ -816,6 +830,22 @@ public class RealmTest extends AbstractAdminTest {
         sessionStats = realm.getClientSessionStats();
 
         assertEquals(0, sessionStats.size());
+    }
+
+    @Test
+    // KEYCLOAK-17342
+    public void testDefaultSignatureAlgorithm() {
+        RealmRepresentation rep = new RealmRepresentation();
+        rep.setRealm("new-realm");
+
+        try {
+            adminClient.realms().create(rep);
+
+            assertEquals(Constants.DEFAULT_SIGNATURE_ALGORITHM, adminClient.realm("master").toRepresentation().getDefaultSignatureAlgorithm());
+            assertEquals(Constants.DEFAULT_SIGNATURE_ALGORITHM, adminClient.realm("new-realm").toRepresentation().getDefaultSignatureAlgorithm());
+        } finally {
+            adminClient.realms().realm(rep.getRealm()).remove();
+        }
     }
 
     private void setupTestAppAndUser() {

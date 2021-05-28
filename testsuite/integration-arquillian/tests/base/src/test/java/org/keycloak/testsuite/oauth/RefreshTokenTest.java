@@ -40,6 +40,7 @@ import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.representations.IDToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.EventRepresentation;
@@ -49,6 +50,8 @@ import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.pages.LoginPage;
+import org.keycloak.testsuite.updaters.ClientAttributeUpdater;
+import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
 import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ClientManager;
 import org.keycloak.testsuite.util.OAuthClient;
@@ -80,6 +83,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.keycloak.protocol.oidc.OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT;
+import static org.keycloak.protocol.oidc.OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN;
 import static org.keycloak.testsuite.Assert.assertExpiration;
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
 import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsername;
@@ -269,6 +274,7 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
 
         setTimeOffset(0);
     }
+
     @Test
     public void refreshTokenWithAccessToken() throws Exception {
         oauth.doLogin("test-user@localhost", "password");
@@ -282,6 +288,31 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
         OAuthClient.AccessTokenResponse response = oauth.doRefreshTokenRequest(accessTokenString, "password");
 
         Assert.assertNotEquals(200, response.getStatusCode());
+
+        setTimeOffset(0);
+    }
+
+    /**
+     * KEYCLOAK-15437
+     */
+    @Test
+    public void tokenRefreshWithAccessTokenShouldReturnIdTokenWithAccessTokenHash() {
+        oauth.doLogin("test-user@localhost", "password");
+
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        OAuthClient.AccessTokenResponse tokenResponse = oauth.doAccessTokenRequest(code, "password");
+        String refreshToken = tokenResponse.getRefreshToken();
+
+        setTimeOffset(2);
+        try {
+            OAuthClient.AccessTokenResponse response = oauth.doRefreshTokenRequest(refreshToken, "password");
+            Assert.assertEquals(200, response.getStatusCode());
+            IDToken idToken = oauth.verifyToken(response.getIdToken());
+            Assert.assertNotNull("AccessTokenHash should not be null after token refresh", idToken.getAccessTokenHash());
+        } finally {
+            setTimeOffset(0);
+        }
     }
 
     @Test
@@ -1124,7 +1155,7 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
             assertEquals(200, response.getStatusCode());
             assertExpiration(response.getRefreshExpiresIn(), ssoSessionIdleTimeout - 100);
 
-            clientRepresentation.getAttributes().put(OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT,
+            clientRepresentation.getAttributes().put(CLIENT_SESSION_IDLE_TIMEOUT,
                 Integer.toString(ssoSessionIdleTimeout - 200));
             client.update(clientRepresentation);
 
@@ -1135,9 +1166,63 @@ public class RefreshTokenTest extends AbstractKeycloakTest {
         } finally {
             rep.setClientSessionIdleTimeout(originalClientSessionIdleTimeout);
             realm.update(rep);
-            clientRepresentation.getAttributes().put(OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT, null);
+            clientRepresentation.getAttributes().put(CLIENT_SESSION_IDLE_TIMEOUT, null);
             client.update(clientRepresentation);
         }
+    }
+
+    @Test // KEYCLOAK-17323
+    public void testRefreshTokenWhenClientSessionTimeoutPassedButRealmDidNot() {
+        getCleanup()
+                .addCleanup(new RealmAttributeUpdater(adminClient.realm("test"))
+                    .setSsoSessionIdleTimeout(2592000) // 30 Days
+                    .setSsoSessionMaxLifespan(86313600) // 999 Days
+                    .update()
+                )
+                .addCleanup(ClientAttributeUpdater.forClient(adminClient, "test", "test-app")
+                    .setAttribute(CLIENT_SESSION_IDLE_TIMEOUT, "60") // 1 minute
+                    .setAttribute(CLIENT_SESSION_MAX_LIFESPAN, "65") // 1 minute 5 seconds
+                    .update()
+                );
+
+        oauth.doLogin("test-user@localhost", "password");
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+        OAuthClient.AccessTokenResponse response = oauth.doAccessTokenRequest(code, "password");
+        assertEquals(200, response.getStatusCode());
+        assertExpiration(response.getExpiresIn(), 65);
+
+        setTimeOffset(70);
+
+        oauth.openLoginForm();
+        code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+        OAuthClient.AccessTokenResponse response2 = oauth.doAccessTokenRequest(code, "password");
+        assertExpiration(response2.getExpiresIn(), 65);
+    }
+
+    @Test
+    public void refreshTokenRequestNoRefreshToken() {
+        ClientResource client = ApiUtil.findClientByClientId(adminClient.realm("test"), "test-app");
+        ClientRepresentation clientRepresentation = client.toRepresentation();
+
+        oauth.doLogin("test-user@localhost", "password");
+
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+
+        OAuthClient.AccessTokenResponse tokenResponse = oauth.doAccessTokenRequest(code, "password");
+
+        String refreshTokenString = tokenResponse.getRefreshToken();
+
+        setTimeOffset(2);
+
+        clientRepresentation.getAttributes().put(OIDCConfigAttributes.USE_REFRESH_TOKEN, "false");
+        client.update(clientRepresentation);
+        OAuthClient.AccessTokenResponse response = oauth.doRefreshTokenRequest(refreshTokenString, "password");
+
+        assertNotNull(response.getAccessToken());
+        assertNull(response.getRefreshToken());
+
+        clientRepresentation.getAttributes().put(OIDCConfigAttributes.USE_REFRESH_TOKEN, "true");
+        client.update(clientRepresentation);
     }
 
     @Test

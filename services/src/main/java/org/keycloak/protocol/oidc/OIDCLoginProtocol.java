@@ -57,6 +57,7 @@ import org.keycloak.util.TokenUtil;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.ws.rs.core.HttpHeaders;
@@ -88,6 +89,7 @@ public class OIDCLoginProtocol implements LoginProtocol {
     public static final String UI_LOCALES_PARAM = OAuth2Constants.UI_LOCALES_PARAM;
     public static final String CLAIMS_PARAM = "claims";
     public static final String ACR_PARAM = "acr_values";
+    public static final String ID_TOKEN_HINT = "id_token_hint";
 
     public static final String LOGOUT_REDIRECT_URI = "OIDC_LOGOUT_REDIRECT_URI";
     public static final String ISSUER = "iss";
@@ -242,7 +244,7 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
             if (responseType.hasResponseType(OIDCResponseType.ID_TOKEN)) {
 
-                responseBuilder.generateIDToken();
+                responseBuilder.generateIDToken(isIdTokenAsDetachedSignature(clientSession.getClient()));
 
                 if (responseType.hasResponseType(OIDCResponseType.TOKEN)) {
                     responseBuilder.generateAccessTokenHash();
@@ -266,14 +268,18 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
             if (responseType.hasResponseType(OIDCResponseType.TOKEN)) {
                 redirectUri.addParam(OAuth2Constants.ACCESS_TOKEN, res.getToken());
-                if (responseType.isImplicitFlow()) {
-                    redirectUri.addParam("token_type", res.getTokenType());
-                    redirectUri.addParam("expires_in", String.valueOf(res.getExpiresIn()));
-                }
+                redirectUri.addParam(OAuth2Constants.TOKEN_TYPE, res.getTokenType());
+                redirectUri.addParam(OAuth2Constants.EXPIRES_IN, String.valueOf(res.getExpiresIn()));
             }
         }
 
         return redirectUri.build();
+    }
+
+    // For FAPI 1.0 Advanced
+    private boolean isIdTokenAsDetachedSignature(ClientModel client) {
+        if (client == null) return false;
+        return Boolean.valueOf(Optional.ofNullable(client.getAttribute(OIDCConfigAttributes.ID_TOKEN_AS_DETACHED_SIGNATURE)).orElse(Boolean.FALSE.toString())).booleanValue();
     }
 
     @Override

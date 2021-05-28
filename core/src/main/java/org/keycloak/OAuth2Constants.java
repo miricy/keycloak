@@ -46,6 +46,10 @@ public interface OAuth2Constants {
 
     String ACCESS_TOKEN = "access_token";
 
+    String TOKEN_TYPE = "token_type";
+
+    String EXPIRES_IN = "expires_in";
+
     String ID_TOKEN = "id_token";
 
     String REFRESH_TOKEN = "refresh_token";
@@ -124,7 +128,11 @@ public interface OAuth2Constants {
     String DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
     String DEVICE_CODE = "device_code";
 
+    String CIBA_GRANT_TYPE = "urn:openid:params:grant-type:ciba";
+
     String DISPLAY_CONSOLE = "console";
+    String INTERVAL = "interval";
+    String USER_CODE = "user_code";
 }
 
 

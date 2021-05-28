@@ -14,8 +14,19 @@
         "provider": "${keycloak.eventsStore.provider:}"
     },
 
+    "deploymentState": {
+        "provider": "${keycloak.deploymentState.provider:jpa}",
+        "map": {
+            "resourcesVersionSeed": "1JZ379bzyOCFA"
+        }
+    },
+
+    "dblock": {
+        "provider": "${keycloak.dblock.provider:jpa}"
+    },
+
     "realm": {
-        "provider": "${keycloak.realm.provider:}"
+        "provider": "${keycloak.realm.provider:jpa}"
     },
 
     "client": {
@@ -35,11 +46,22 @@
     },
 
     "authenticationSessions": {
-        "provider": "${keycloak.authSession.provider:infinispan}"
+        "provider": "${keycloak.authSession.provider:infinispan}",
+        "infinispan": {
+            "authSessionsLimit": "${keycloak.authSessions.limit:300}"
+        }
+    },
+
+    "userSessions": {
+        "provider": "${keycloak.userSession.provider:infinispan}"
+    },
+
+    "loginFailure": {
+        "provider": "${keycloak.loginFailure.provider:infinispan}"
     },
 
     "mapStorage": {
-        "provider": "${keycloak.mapStorage.provider:concurrenthashmap}",
+        "provider": "${keycloak.mapStorage.provider:}",
         "concurrenthashmap": {
             "dir": "${project.build.directory:target}"
         }
@@ -58,7 +80,7 @@
     },
 
     "authorizationPersister": {
-        "provider": "${keycloak.authorization.provider:}"
+        "provider": "${keycloak.authorization.provider:jpa}"
     },
 
     "theme": {
@@ -141,4 +163,5 @@
             "certificateChainLength": 1
         }
     }
+
 }

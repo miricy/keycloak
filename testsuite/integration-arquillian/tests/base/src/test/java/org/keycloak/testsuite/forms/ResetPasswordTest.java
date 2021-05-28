@@ -215,7 +215,7 @@ public class ResetPasswordTest extends AbstractTestRealmKeycloakTest {
         String changePasswordUrl = resetPassword("login-test");
         events.clear();
 
-        assertSecondPasswordResetFails(changePasswordUrl, oauth.getClientId()); // KC_RESTART doesn't exists, it was deleted after first successful reset-password flow was finished
+        assertSecondPasswordResetFails(changePasswordUrl, oauth.getClientId()); // KC_RESTART doesn't exist, it was deleted after first successful reset-password flow was finished
     }
 
     @Test
@@ -1154,6 +1154,26 @@ public class ResetPasswordTest extends AbstractTestRealmKeycloakTest {
             resetPasswordTwiceInNewTab(defaultUser, CLIENT_ID, true, REDIRECT_URI);
             assertThat(driver.getCurrentUrl(), Matchers.containsString(REDIRECT_URI));
         }
+    }
+
+    // KEYCLOAK-15170
+    @Test
+    public void changeEmailAddressAfterSendingEmail() throws IOException {
+        initiateResetPasswordFromResetPasswordPage(defaultUser.getUsername());
+
+        assertEquals(1, greenMail.getReceivedMessages().length);
+
+        MimeMessage message = greenMail.getReceivedMessages()[0];
+        String changePasswordUrl = MailUtils.getPasswordResetEmailLink(message);
+
+        UserResource user = testRealm().users().get(defaultUser.getId());
+        UserRepresentation userRep = user.toRepresentation();
+        userRep.setEmail("vmuzikar@redhat.com");
+        user.update(userRep);
+
+        driver.navigate().to(changePasswordUrl.trim());
+        errorPage.assertCurrent();
+        assertEquals("Invalid email address.", errorPage.getError());
     }
 
     private void changePasswordOnUpdatePage(WebDriver driver) {
