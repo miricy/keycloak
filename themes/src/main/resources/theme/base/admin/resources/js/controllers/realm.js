@@ -3206,6 +3206,11 @@ module.controller('ClientPoliciesProfilesEditExecutorCtrl', function($scope, rea
     } else {
         var exec = getExecutorByIndex($scope.editedProfile, updatedExecutorIndex);
         if (exec) {
+            // a failsafe in case the configuration was deleted entirely (or set to null) in the JSON view
+            if (!exec.configuration) {
+                exec.configuration = {}
+            }
+
             $scope.executor = {
                 config: exec.configuration
             };
@@ -3218,20 +3223,34 @@ module.controller('ClientPoliciesProfilesEditExecutorCtrl', function($scope, rea
                     break;
                 }
             }
+
+            for (var j=0 ; j < $scope.executorType.properties.length ; j++) {
+                // Convert boolean properties from the configuration to strings as expected by the kc-provider-config directive
+                var currentProperty = $scope.executorType.properties[j];
+                if (currentProperty.type === 'boolean') {
+                    $scope.executor.config[currentProperty.name] = ($scope.executor.config[currentProperty.name]) ? "true" : "false";
+                }
+
+                // a workaround for select2 to prevent displaying empty boxes
+                var configProperty = $scope.executor.config[$scope.executorType.properties[j].name];
+                if (Array.isArray(configProperty) && configProperty.length === 0) {
+                    $scope.executor.config[$scope.executorType.properties[j].name] = null
+                }
+
+            }
         }
 
     }
 
     function toDefaultValue(configProperty) {
-        if (configProperty.type === 'MultivaluedString' || configProperty.type === 'MultivaluedList') {
-            if (configProperty.defaultValue) {
-                return configProperty.defaultValue;
-            } else {
-                return [];
-            }
+        if (configProperty.type === 'boolean') {
+            return (configProperty.defaultValue) ? "true" : "false";
         }
 
         if (configProperty.defaultValue !== undefined) {
+            if ((configProperty.type === 'MultivaluedString' || configProperty.type === 'MultivaluedList') && !Array.isArray(configProperty.defaultValue)) {
+                return [configProperty.defaultValue]
+            }
             return configProperty.defaultValue;
         } else {
             return null;
@@ -3259,6 +3278,14 @@ module.controller('ClientPoliciesProfilesEditExecutorCtrl', function($scope, rea
         }
 
         ComponentUtils.removeLastEmptyValue($scope.executor.config);
+
+        // Convert String properties required by the kc-provider-config directive back to booleans
+        for (var j=0 ; j < $scope.executorType.properties.length ; j++) {
+            var currentProperty = $scope.executorType.properties[j];
+            if (currentProperty.type === 'boolean') {
+                $scope.executor.config[currentProperty.name] = ($scope.executor.config[currentProperty.name] === "true") ? true : false;
+            }
+        }
 
         if ($scope.createNew) {
             var selectedExecutor = {
@@ -3568,6 +3595,11 @@ module.controller('ClientPoliciesEditConditionCtrl', function($scope, realm, ser
     } else {
         var cond = getConditionByIndex($scope.editedPolicy, updatedConditionIndex);
         if (cond) {
+            // a failsafe in case the configuration was deleted entirely (or set to null) in the JSON view
+            if (!cond.configuration) {
+                cond.configuration = {}
+            }
+
             $scope.condition = {
                 config: cond.configuration
             };
@@ -3580,20 +3612,34 @@ module.controller('ClientPoliciesEditConditionCtrl', function($scope, realm, ser
                     break;
                 }
             }
+
+            for (var j=0 ; j < $scope.conditionType.properties.length ; j++) {
+                // Convert boolean properties from the configuration to strings as expected by the kc-provider-config directive
+                var currentProperty = $scope.conditionType.properties[j];
+                if (currentProperty.type === 'boolean') {
+                    $scope.condition.config[currentProperty.name] = ($scope.condition.config[currentProperty.name]) ? "true" : "false";
+                }
+
+                // a workaround for select2 to prevent displaying empty boxes
+                var configProperty = $scope.condition.config[$scope.conditionType.properties[j].name];
+                if (Array.isArray(configProperty) && configProperty.length === 0) {
+                    $scope.condition.config[$scope.conditionType.properties[j].name] = null
+                }
+
+            }
         }
 
     }
 
     function toDefaultValue(configProperty) {
-        if (configProperty.type === 'MultivaluedString' || configProperty.type === 'MultivaluedList') {
-            if (configProperty.defaultValue) {
-                return configProperty.defaultValue;
-            } else {
-                return [];
-            }
+        if (configProperty.type === 'boolean') {
+            return (configProperty.defaultValue) ? "true" : "false";
         }
 
         if (configProperty.defaultValue !== undefined) {
+            if ((configProperty.type === 'MultivaluedString' || configProperty.type === 'MultivaluedList') && !Array.isArray(configProperty.defaultValue)) {
+                return [configProperty.defaultValue]
+            }
             return configProperty.defaultValue;
         } else {
             return null;
@@ -3622,6 +3668,14 @@ module.controller('ClientPoliciesEditConditionCtrl', function($scope, realm, ser
         }
 
         ComponentUtils.removeLastEmptyValue($scope.condition.config);
+
+        // Convert String properties required by the kc-provider-config directive back to booleans
+        for (var j=0 ; j < $scope.conditionType.properties.length ; j++) {
+            var currentProperty = $scope.conditionType.properties[j];
+            if (currentProperty.type === 'boolean') {
+                $scope.condition.config[currentProperty.name] = ($scope.condition.config[currentProperty.name] === "true") ? true : false;
+            }
+        }
 
         var selectedCondition;
         if ($scope.createNew) {

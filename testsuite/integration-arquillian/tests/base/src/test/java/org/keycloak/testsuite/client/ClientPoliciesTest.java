@@ -52,7 +52,6 @@ import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
 import org.keycloak.authentication.authenticators.client.JWTClientSecretAuthenticator;
 import org.keycloak.authentication.authenticators.client.X509ClientAuthenticator;
 import org.keycloak.client.registration.ClientRegistrationException;
-import org.keycloak.common.Profile;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventType;
@@ -98,7 +97,6 @@ import org.keycloak.services.clientpolicy.executor.SecureSigningAlgorithmForSign
 import org.keycloak.services.clientpolicy.executor.SecureRequestObjectExecutor;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
-import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.client.resources.TestApplicationResourceUrls;
 import org.keycloak.testsuite.rest.resource.TestingOIDCEndpointsApplicationResource.AuthorizationEndpointRequestObject;
@@ -114,7 +112,6 @@ import org.keycloak.util.JsonSerialization;
 /**
  * @author <a href="mailto:takashi.norimatsu.ws@hitachi.com">Takashi Norimatsu</a>
  */
-@EnableFeature(value = Profile.Feature.CLIENT_POLICIES, skipRestart = true)
 public class ClientPoliciesTest extends AbstractClientPoliciesTest {
 
     private static final Logger logger = Logger.getLogger(ClientPoliciesTest.class);
@@ -1151,7 +1148,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         oauth.requestUri(null);
         oauth.openLoginForm();
         assertEquals(OAuthErrorException.INVALID_REQUEST, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Invalid parameter", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Missing parameter: 'request' or 'request_uri'", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether request_uri is https scheme
         // cannot test because existing AuthorizationEndpoint check and return error before executing client policy
@@ -1168,7 +1165,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, true);
         oauth.openLoginForm();
         assertEquals(OAuthErrorException.INVALID_REQUEST, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Missing parameter : scope", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Parameter 'scope' missing in the request parameters or in 'request' object", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether "exp" claim exists
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -1176,7 +1173,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, false);
         oauth.openLoginForm();
         assertEquals(SecureRequestObjectExecutor.INVALID_REQUEST_OBJECT, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Missing parameter : exp", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Missing parameter in the 'request' object: exp", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether request object not expired
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -1192,7 +1189,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, false);
         oauth.openLoginForm();
         assertEquals(SecureRequestObjectExecutor.INVALID_REQUEST_OBJECT, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Missing parameter : nbf", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Missing parameter in the 'request' object: nbf", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether request object not yet being processed
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -1216,7 +1213,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, false);
         oauth.openLoginForm();
         assertEquals(SecureRequestObjectExecutor.INVALID_REQUEST_OBJECT, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Missing parameter : aud", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Missing parameter in the 'request' object: aud", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether "aud" claim points to this keycloak as authz server
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -1224,7 +1221,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, true);
         oauth.openLoginForm();
         assertEquals(SecureRequestObjectExecutor.INVALID_REQUEST_OBJECT, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Invalid parameter : aud", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Invalid parameter in the 'request' object: aud", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // confirm whether all parameters in query string are included in the request object, and have the same values
         // argument "request" are parameters overridden by parameters in request object
@@ -1233,7 +1230,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, false);
         oauth.openLoginForm();
         assertEquals(OAuthErrorException.INVALID_REQUEST, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Invalid parameter", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Invalid parameter. Parameters in 'request' object not matching with request parameters", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // valid request object
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -1255,7 +1252,7 @@ public class ClientPoliciesTest extends AbstractClientPoliciesTest {
         registerRequestObject(requestObject, clientId, Algorithm.ES256, false);
         oauth.openLoginForm();
         assertEquals(SecureRequestObjectExecutor.INVALID_REQUEST_OBJECT, oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-        assertEquals("Missing parameter : nbf", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
+        assertEquals("Missing parameter in the 'request' object: nbf", oauth.getCurrentQuery().get(OAuth2Constants.ERROR_DESCRIPTION));
 
         // check whether request object not yet being processed
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
